@@ -1,3 +1,11 @@
+/*
+  BatyStore (MVP) - estilos
+
+  - Tokens en :root para colores, sombras, radios y animaciones.
+  - Layout responsive (desktop → mobile).
+  - En mobile el header se apila y el nav pasa a scroll horizontal.
+*/
+
 :root{
   --bg:#0b0b0e;
   --surface:#14141a;

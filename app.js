@@ -1,3 +1,19 @@
+/*
+  BatyStore (MVP)
+
+  Archivo principal de la app.
+
+  Responsabilidades:
+  - Configuración del negocio (seña, envío, WhatsApp y datos bancarios)
+  - Catálogo y reglas de personalización
+  - Estado local (carrito/pedidos) persistido en localStorage
+  - Renderizado SPA por hash (#/)
+  - Generación de pedido + link de WhatsApp para confirmar seña
+
+  Nota: este MVP no tiene backend; el historial de pedidos vive en el navegador del usuario.
+*/
+
+/* ===== Configuración del negocio ===== */
 const CONFIG = {
   storeName: "BatyStore",
   currency: "ARS",
@@ -18,6 +34,7 @@ const CONFIG = {
   },
 };
 
+/* ===== Catálogo ===== */
 const PRODUCTS = [
   {
     id: "remera-basica",
@@ -61,6 +78,7 @@ const PERSONALIZATION_PRICING = [
   { placement: "Frente", price: 4900 },
 ];
 
+/* ===== Persistencia (localStorage) ===== */
 const STORAGE_KEYS = {
   cart: "batystore.cart.v1",
   orders: "batystore.orders.v1",
@@ -82,6 +100,7 @@ function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
+/* ===== Estado en memoria ===== */
 const state = {
   cart: [],
   orders: [],
@@ -218,19 +237,14 @@ function parseRoute() {
   return { hash, path, parts, query };
 }
 
+/* ===== Videos en miniaturas (catálogo / producto) ===== */
 let thumbVideoObserver = null;
+let thumbVisibilityHandler = null;
 
 function prefersReducedMotion() {
   return typeof window.matchMedia === "function"
     ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
     : false;
-}
-
-function ensureThumbVideoPreloaded(videoEl) {
-  if (!(videoEl instanceof HTMLVideoElement)) return;
-  if (videoEl.dataset.preloaded === "1") return;
-  videoEl.load();
-  videoEl.dataset.preloaded = "1";
 }
 
 function setupThumbVideos(container) {
@@ -239,10 +253,23 @@ function setupThumbVideos(container) {
     thumbVideoObserver = null;
   }
 
+  if (thumbVisibilityHandler) {
+    document.removeEventListener("visibilitychange", thumbVisibilityHandler);
+    thumbVisibilityHandler = null;
+  }
+
   const videos = Array.from(container.querySelectorAll(".thumb-media"));
   if (videos.length === 0) return;
 
   const reducedMotion = prefersReducedMotion();
+
+  thumbVisibilityHandler = () => {
+    if (!document.hidden) return;
+    for (const v of videos) {
+      if (v instanceof HTMLVideoElement) v.pause();
+    }
+  };
+  document.addEventListener("visibilitychange", thumbVisibilityHandler);
 
   thumbVideoObserver = new IntersectionObserver(
     (entries) => {
@@ -250,13 +277,7 @@ function setupThumbVideos(container) {
         const el = entry.target;
         if (!(el instanceof HTMLVideoElement)) continue;
 
-        if (!entry.isIntersecting) {
-          el.pause();
-          continue;
-        }
-
-        ensureThumbVideoPreloaded(el);
-        if (reducedMotion) {
+        if (!entry.isIntersecting || reducedMotion) {
           el.pause();
           continue;
         }
@@ -271,17 +292,6 @@ function setupThumbVideos(container) {
   );
 
   videos.forEach((v) => thumbVideoObserver.observe(v));
-
-  for (const v of videos) {
-    if (!(v instanceof HTMLVideoElement)) continue;
-    ensureThumbVideoPreloaded(v);
-    if (!reducedMotion) {
-      const playPromise = v.play();
-      if (playPromise && typeof playPromise.catch === "function") {
-        playPromise.catch(() => {});
-      }
-    }
-  }
 }
 
 function render() {

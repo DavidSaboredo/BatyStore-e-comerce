@@ -42,6 +42,11 @@
       </div>
     </footer>
 
+    <!--
+      Vercel Web Analytics
+      - Permite ver visitantes y pageviews en el panel de Vercel.
+      - En localhost puede fallar (no existe /_vercel/*); funciona en el deploy.
+    -->
     <script>
       window.va =
         window.va ||
@@ -50,6 +55,8 @@
         };
     </script>
     <script defer src="/_vercel/insights/script.js"></script>
+
+    <!-- App principal (SPA por hash: #/) -->
     <script type="module" src="./app.js"></script>
   </body>
 </html>
