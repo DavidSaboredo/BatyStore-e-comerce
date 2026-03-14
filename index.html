@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BatyStore</title>
+    <meta name="description" content="Remeras, buzos y gorras personalizadas. Argentina. Precios en ARS." />
+    <link rel="icon" href="./baty-logo.jpg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="#/">
+          <img class="brand-logo" src="./baty-logo.jpg" alt="BatyStore" width="40" height="40" />
+          <div class="brand-text">
+            <div class="brand-name">BatyStore</div>
+            <div class="brand-tagline">Remeras, buzos y gorras personalizadas</div>
+          </div>
+        </a>
+
+        <nav class="nav">
+          <a class="nav-link" href="#/">Catálogo</a>
+          <a class="nav-link" href="#/como-funciona">Cómo funciona</a>
+          <a class="nav-link nav-cart" href="#/carrito">
+            Carrito <span class="chip" id="cartCount">0</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="site-main">
+      <div class="container">
+        <div id="app" class="app"></div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div class="footer-copy">Copyright © 2026 Laruzo. Todos los derechos reservados. Diseñado y desarrollado por Laruzo.</div>
+        <a class="footer-link" href="#/politicas">Políticas</a>
+      </div>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
