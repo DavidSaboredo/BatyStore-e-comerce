@@ -20,7 +20,7 @@ const CONFIG = {
   locale: "es-AR",
   depositPercent: 0.3,
   depositHoursLimit: 48,
-  whatsappNumber: "5490000000000",
+  whatsappNumber: "5493442409755",
   bank: {
     alias: "BATYSTORE.ALIAS",
     cvuCbu: "0000000000000000000000",
