@@ -494,6 +494,7 @@ function renderConfig() {
   const cloudName = typeof cfg.cloudName === "string" ? cfg.cloudName : "";
   const uploadPreset = typeof cfg.uploadPreset === "string" ? cfg.uploadPreset : "";
   const folder = typeof cfg.folder === "string" ? cfg.folder : "";
+  const adminKey = typeof getSettings()?.adminKey === "string" ? String(getSettings().adminKey) : "";
 
   return `
     <section class="panel">
@@ -528,6 +529,18 @@ function renderConfig() {
           <input id="folder" name="folder" placeholder="Ej: batystore" value="${escapeHtml(folder)}" />
         </div>
 
+        <div class="divider"></div>
+
+        <div class="notice">
+          <div class="notice-title">Acceso Admin</div>
+          <p class="notice-text">Usá la misma clave que cargaste en Vercel como ADMIN_KEY.</p>
+        </div>
+
+        <div class="field full">
+          <label for="adminKey">Admin key</label>
+          <input id="adminKey" name="adminKey" placeholder="Clave de admin" value="${escapeHtml(adminKey)}" />
+        </div>
+
         <div class="field full">
           <div class="row">
             <button class="btn" type="button" id="goCatalog">Volver</button>
@@ -550,6 +563,7 @@ function attachConfigHandlers() {
     clearBtn.addEventListener("click", () => {
       const next = { ...getSettings() };
       delete next.cloudinary;
+      delete next.adminKey;
       setSettings(next);
       render();
     });
@@ -562,6 +576,7 @@ function attachConfigHandlers() {
     const cloudName = String(fd.get("cloudName") || "").trim();
     const uploadPreset = String(fd.get("uploadPreset") || "").trim();
     const folder = String(fd.get("folder") || "").trim();
+    const adminKey = String(fd.get("adminKey") || "").trim();
 
     const next = { ...getSettings() };
     const current = next.cloudinary && typeof next.cloudinary === "object" ? { ...next.cloudinary } : {};
@@ -571,6 +586,8 @@ function attachConfigHandlers() {
     else delete current.uploadPreset;
     if (typeof folder === "string") current.folder = folder;
     next.cloudinary = current;
+    if (adminKey) next.adminKey = adminKey;
+    else delete next.adminKey;
     setSettings(next);
     navigate("#/");
   });
@@ -593,6 +610,8 @@ function getCloudinaryConfig() {
 }
 
 function getAdminKey() {
+  const saved = getSettings()?.adminKey;
+  if (typeof saved === "string" && saved.trim()) return saved.trim();
   const cfgKey = typeof CONFIG.adminKey === "string" ? CONFIG.adminKey.trim() : "";
   if (cfgKey) return cfgKey;
   return "batystore-admin";
@@ -889,7 +908,7 @@ function attachAdminHandlers(query) {
     setSettings(next);
 
     try {
-      await fetch("/api/store", {
+      const res = await fetch("/api/store", {
         method: "POST",
         headers: {
           "Content-Type": "application/json; charset=utf-8",
@@ -897,7 +916,17 @@ function attachAdminHandlers(query) {
         },
         body: JSON.stringify({ designs, pricing: next.pricing }),
       });
-    } catch {}
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const msg = data?.error ? String(data.error) : "No se pudo publicar.";
+        alert(msg);
+        return;
+      }
+      await loadPublishedStore();
+    } catch {
+      alert("No se pudo publicar. Revisá Vercel KV y las variables de entorno.");
+      return;
+    }
 
     navigate("#/");
   });
@@ -924,14 +953,13 @@ function renderCatalog(query) {
     `;
   }).join("");
 
-  const isOwner = (query?.get("key") || "") === getAdminKey();
-  const designsWithImages = getDesigns().filter((d) => d && typeof d.imageUrl === "string" && d.imageUrl.trim());
-  const designsHtml = designsWithImages
+  const designs = getDesigns();
+  const designsHtml = designs
     .map((d) => {
-      const img = typeof d.imageUrl === "string" ? d.imageUrl.trim() : "";
-      const media = `<img class="design-card-img" src="${escapeHtml(img)}" alt="${escapeHtml(
-        d.name,
-      )}" loading="lazy" />`;
+      const img = typeof d?.imageUrl === "string" ? d.imageUrl.trim() : "";
+      const media = img
+        ? `<img class="design-card-img" src="${escapeHtml(img)}" alt="${escapeHtml(d.name)}" loading="lazy" />`
+        : `<div class="design-card-img placeholder"></div>`;
       const price = designPriceFor(d);
       return `
         <button class="design-card" type="button" data-design-order="${escapeHtml(d.id)}">
@@ -970,15 +998,10 @@ function renderCatalog(query) {
       <section class="panel">
         <div class="row">
           <h2 class="panel-title" style="margin:0">Diseños de la casa</h2>
-          ${
-            isOwner
-              ? `<a class="btn btn-outline" href="#/admin?key=${escapeHtml(encodeURIComponent(getAdminKey()))}">Admin</a>`
-              : ""
-          }
         </div>
         <p class="panel-subtitle">Elegí un diseño y pasá directo al pedido.</p>
         ${
-          designsWithImages.length > 0
+          designs.length > 0
             ? `<div class="design-carousel" id="homeDesignCarousel">${designsHtml}</div>`
             : `<div class="notice"><div class="notice-title">Próximamente</div><p class="notice-text">Todavía no hay diseños publicados.</p></div>`
         }
