@@ -462,6 +462,12 @@ function render() {
   }
 
   if (parts[0] === "admin") {
+    const key = query.get("key") || "";
+    if (key !== getAdminKey()) {
+      root.innerHTML = renderNotFound();
+      setupThumbVideos(root);
+      return;
+    }
     root.innerHTML = renderAdmin(query);
     attachAdminHandlers(query);
     return;
@@ -837,13 +843,13 @@ function renderCatalog() {
     `;
   }).join("");
 
-  const designs = getDesigns();
-  const designsHtml = designs
+  const designsWithImages = getDesigns().filter((d) => d && typeof d.imageUrl === "string" && d.imageUrl.trim());
+  const designsHtml = designsWithImages
     .map((d) => {
       const img = typeof d.imageUrl === "string" ? d.imageUrl.trim() : "";
-      const media = img
-        ? `<img class="design-card-img" src="${escapeHtml(img)}" alt="${escapeHtml(d.name)}" loading="lazy" />`
-        : `<div class="design-card-img placeholder"></div>`;
+      const media = `<img class="design-card-img" src="${escapeHtml(img)}" alt="${escapeHtml(
+        d.name,
+      )}" loading="lazy" />`;
       const price = designPriceFor(d);
       return `
         <button class="design-card" type="button" data-design-order="${escapeHtml(d.id)}">
@@ -879,14 +885,19 @@ function renderCatalog() {
         </div>
       </section>
 
+      ${
+        designsWithImages.length > 0
+          ? `
       <section class="panel">
         <div class="row">
           <h2 class="panel-title" style="margin:0">Diseños de la casa</h2>
-          <a class="btn btn-outline" href="#/admin?key=${escapeHtml(encodeURIComponent(getAdminKey()))}">Admin</a>
         </div>
         <p class="panel-subtitle">Elegí un diseño y pasá directo al pedido.</p>
         <div class="design-carousel" id="homeDesignCarousel">${designsHtml}</div>
       </section>
+      `
+          : ""
+      }
 
       <section class="grid">
         ${itemsHtml}
@@ -1100,6 +1111,18 @@ function renderProduct(productId) {
     )
     .join("");
 
+  const isRemera = product.type === "Remera";
+  const materialOptions = MATERIALS.map(
+    (m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`,
+  ).join("");
+
+  const defaultMaterial = MATERIALS[0];
+  const defaultMax = defaultMaterial?.maxSize ?? 6;
+  const numericSizes = Array.from({ length: defaultMax }, (_, i) => {
+    const v = String(i + 1);
+    return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
+  }).join("");
+
   return `
     <div class="two-col">
       <section class="panel">
@@ -1116,9 +1139,20 @@ function renderProduct(productId) {
         <div class="divider"></div>
 
         <form id="customForm" class="form" autocomplete="off">
+          ${
+            isRemera
+              ? `
+          <div class="field">
+            <label for="material">Material</label>
+            <select id="material" name="material" required>${materialOptions}</select>
+          </div>
+          `
+              : ""
+          }
+
           <div class="field">
             <label for="size">Talle</label>
-            <select id="size" name="size" required>${sizes}</select>
+            <select id="size" name="size" required>${isRemera ? numericSizes : sizes}</select>
           </div>
 
           <div class="field">
@@ -1239,6 +1273,7 @@ function attachProductHandlers(productId) {
   if (!product) return;
 
   const form = document.getElementById("customForm");
+  const materialSelect = document.getElementById("material");
   const sizeSelect = document.getElementById("size");
   const colorSelect = document.getElementById("color");
   const placementSelect = document.getElementById("placement");
@@ -1250,6 +1285,28 @@ function attachProductHandlers(productId) {
   const estimatedTotalEl = document.getElementById("estimatedTotal");
   const depositHint = document.getElementById("depositHint");
   const backBtn = document.getElementById("backToCatalog");
+
+  const isRemera = product.type === "Remera";
+
+  function refreshNumericSizes() {
+    if (!isRemera) return;
+    if (!(materialSelect instanceof HTMLSelectElement)) return;
+    if (!(sizeSelect instanceof HTMLSelectElement)) return;
+
+    const materialId = String(materialSelect.value || "").trim();
+    const mat = MATERIALS.find((m) => m.id === materialId) || MATERIALS[0];
+    const max = mat?.maxSize ?? 6;
+    const previous = Number(sizeSelect.value);
+
+    sizeSelect.innerHTML = Array.from({ length: max }, (_, i) => {
+      const v = String(i + 1);
+      return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
+    }).join("");
+
+    if (Number.isFinite(previous) && previous >= 1 && previous <= max) {
+      sizeSelect.value = String(previous);
+    }
+  }
 
   function refreshPricing() {
     const placement = placementSelect.value;
@@ -1278,8 +1335,14 @@ function attachProductHandlers(productId) {
 
   if (placementSelect) placementSelect.addEventListener("change", refreshPricing);
   if (styleSelect) styleSelect.addEventListener("change", refreshCustomizationMode);
+  if (materialSelect) {
+    materialSelect.addEventListener("change", () => {
+      refreshNumericSizes();
+    });
+  }
   if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
 
+  refreshNumericSizes();
   refreshCustomizationMode();
   refreshPricing();
 
@@ -1296,6 +1359,7 @@ function attachProductHandlers(productId) {
       }
 
       const fd = new FormData(form);
+      const material = String(fd.get("material") || "").trim();
       const size = String(fd.get("size") || "").trim();
       const color = String(fd.get("color") || "").trim();
       const placement = String(fd.get("placement") || "").trim();
@@ -1303,6 +1367,11 @@ function attachProductHandlers(productId) {
       const text = String(fd.get("text") || "").trim();
       const notes = String(fd.get("notes") || "").trim();
       const file = fd.get("file");
+
+      if (isRemera && !material) {
+        alert("Elegí el material.");
+        return;
+      }
 
       const extras = placementPrice(placement);
 
@@ -1318,6 +1387,7 @@ function attachProductHandlers(productId) {
         const customization = {
           type: "upload",
           placement,
+          material: isRemera ? material : "",
           fileName: uploaded.fileName || file.name,
           fileUrl: uploaded.url,
           filePublicId: uploaded.publicId,
@@ -1350,6 +1420,7 @@ function attachProductHandlers(productId) {
         type: "text",
         placement,
         text,
+        material: isRemera ? material : "",
         notes,
       };
 
@@ -1398,6 +1469,8 @@ function renderCart() {
       const sizeLabel = escapeHtml(item.variant?.size || "");
       const colorLabel = escapeHtml(item.variant?.color || "");
       const placementLabel = escapeHtml(item.customization?.placement || "");
+      const materialRaw = String(item.customization?.material || "").trim();
+      const materialLabel = materialRaw ? ` • ${escapeHtml(materialRaw)}` : "";
 
       const kind = String(item.customization?.type || "");
 
@@ -1417,11 +1490,13 @@ function renderCart() {
         customLabel = fileUrl
           ? `Diseño: <a href="${escapeHtml(fileUrl)}" target="_blank" rel="noreferrer">${fileName}</a>`
           : `Diseño: ${fileName}`;
-        if (placementLabel) subLabel = `${subLabel} • ${placementLabel}`;
+        if (placementLabel) subLabel = `${subLabel}${materialLabel} • ${placementLabel}`;
+        else subLabel = `${subLabel}${materialLabel}`;
       } else {
         const text = escapeHtml(item.customization?.text || "");
         customLabel = `Texto: “${text}”`;
-        if (placementLabel) subLabel = `${subLabel} • ${placementLabel}`;
+        if (placementLabel) subLabel = `${subLabel}${materialLabel} • ${placementLabel}`;
+        else subLabel = `${subLabel}${materialLabel}`;
       }
 
       return `
@@ -1727,6 +1802,8 @@ function formatCartItemForMessage(item) {
   const talle = String(item?.variant?.size || "-");
   const color = item?.variant?.color ? ` | Color: ${item.variant.color}` : "";
   const notes = item?.customization?.notes ? ` | Notas: ${item.customization.notes}` : "";
+  const material = String(item?.customization?.material || "").trim();
+  const materialPart = material ? ` | Material: ${material}` : "";
 
   if (kind === "house") {
     const designName = String(item?.customization?.designName || "-");
@@ -1740,11 +1817,11 @@ function formatCartItemForMessage(item) {
     const fileUrl = String(item?.customization?.fileUrl || "").trim();
     const fileName = String(item?.customization?.fileName || "-");
     const design = fileUrl ? fileUrl : fileName;
-    return `- ${qty}x ${name} (Diseño: ${design} | Talle: ${talle} | Ubicación: ${placement}${color}${notes})`;
+    return `- ${qty}x ${name} (Diseño: ${design} | Talle: ${talle}${materialPart} | Ubicación: ${placement}${color}${notes})`;
   }
 
   const text = String(item?.customization?.text || "-");
-  return `- ${qty}x ${name} (Texto: ${text} | Talle: ${talle} | Ubicación: ${placement}${color}${notes})`;
+  return `- ${qty}x ${name} (Texto: ${text} | Talle: ${talle}${materialPart} | Ubicación: ${placement}${color}${notes})`;
 }
 
 function buildPaymentMessage(order) {
