@@ -20,7 +20,7 @@ const CONFIG = {
   locale: "es-AR",
   depositPercent: 0.3,
   depositHoursLimit: 48,
-  whatsappNumber: "5493442409755",
+  whatsappNumber: "3442409755",
   bank: {
     alias: "BATYSTORE.ALIAS",
     cvuCbu: "0000000000000000000000",
@@ -31,6 +31,11 @@ const CONFIG = {
     pickupLabel: "Retiro por el local",
     deliveryLabel: "Envío a domicilio",
     deliveryFlatRate: 6000,
+  },
+  cloudinary: {
+    cloudName: "",
+    uploadPreset: "",
+    folder: "batystore",
   },
 };
 
@@ -82,6 +87,7 @@ const PERSONALIZATION_PRICING = [
 const STORAGE_KEYS = {
   cart: "batystore.cart.v1",
   orders: "batystore.orders.v1",
+  settings: "batystore.settings.v1",
 };
 
 const moneyFormatter = new Intl.NumberFormat(CONFIG.locale, {
@@ -104,6 +110,7 @@ function clampNumber(value, min, max) {
 const state = {
   cart: [],
   orders: [],
+  settings: {},
 };
 
 function readCartFromStorage() {
@@ -141,9 +148,26 @@ function setOrders(items) {
   localStorage.setItem(STORAGE_KEYS.orders, JSON.stringify(state.orders));
 }
 
+function readSettingsFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.settings);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function setSettings(next) {
+  state.settings = next && typeof next === "object" ? next : {};
+  localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings));
+}
+
 function loadState() {
   state.cart = readCartFromStorage();
   state.orders = readOrdersFromStorage();
+  state.settings = readSettingsFromStorage();
   updateCartCount();
 }
 
@@ -153,6 +177,10 @@ function getCart() {
 
 function getOrders() {
   return state.orders;
+}
+
+function getSettings() {
+  return state.settings;
 }
 
 function makeId(prefix) {
@@ -347,8 +375,95 @@ function render() {
     return;
   }
 
+  if (parts[0] === "config") {
+    root.innerHTML = renderConfig();
+    attachConfigHandlers();
+    return;
+  }
+
   root.innerHTML = renderNotFound();
   setupThumbVideos(root);
+}
+
+function renderConfig() {
+  const cfg = getSettings()?.cloudinary || {};
+  const cloudName = typeof cfg.cloudName === "string" ? cfg.cloudName : "";
+  const uploadPreset = typeof cfg.uploadPreset === "string" ? cfg.uploadPreset : "";
+  const folder = typeof cfg.folder === "string" ? cfg.folder : "batystore";
+
+  return `
+    <section class="panel">
+      <h1 class="panel-title">Configuración</h1>
+      <p class="panel-subtitle">Guardado en este navegador.</p>
+      <div class="divider"></div>
+
+      <div class="notice">
+        <div class="notice-title">Cloudinary (subida de diseños)</div>
+        <p class="notice-text">
+          Usá un Upload Preset unsigned. El link del diseño se incluye en el pedido por WhatsApp.
+        </p>
+      </div>
+
+      <div class="divider"></div>
+
+      <form id="configForm" class="form" autocomplete="off">
+        <div class="field">
+          <label for="cloudName">Cloud name</label>
+          <input id="cloudName" name="cloudName" placeholder="Ej: mi-cloud" value="${escapeHtml(
+            cloudName,
+          )}" />
+        </div>
+        <div class="field">
+          <label for="uploadPreset">Upload preset (unsigned)</label>
+          <input id="uploadPreset" name="uploadPreset" placeholder="Ej: batystore_unsigned" value="${escapeHtml(
+            uploadPreset,
+          )}" />
+        </div>
+        <div class="field full">
+          <label for="folder">Folder (opcional)</label>
+          <input id="folder" name="folder" placeholder="Ej: batystore" value="${escapeHtml(folder)}" />
+        </div>
+
+        <div class="field full">
+          <div class="row">
+            <button class="btn" type="button" id="goCatalog">Volver</button>
+            <button class="btn btn-outline" type="button" id="clearCfg">Borrar</button>
+            <button class="btn btn-primary" type="submit">Guardar</button>
+          </div>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+function attachConfigHandlers() {
+  const form = document.getElementById("configForm");
+  const goCatalog = document.getElementById("goCatalog");
+  const clearBtn = document.getElementById("clearCfg");
+  if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      const next = { ...getSettings() };
+      delete next.cloudinary;
+      setSettings(next);
+      render();
+    });
+  }
+
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const cloudName = String(fd.get("cloudName") || "").trim();
+    const uploadPreset = String(fd.get("uploadPreset") || "").trim();
+    const folder = String(fd.get("folder") || "").trim();
+
+    const next = { ...getSettings() };
+    next.cloudinary = { cloudName, uploadPreset, folder };
+    setSettings(next);
+    navigate("#/");
+  });
 }
 
 function renderCatalog() {
@@ -540,6 +655,41 @@ function renderProduct(productId) {
   `;
 }
 
+async function uploadDesignToCloudinary(file) {
+  const saved = getSettings()?.cloudinary;
+  const cfg =
+    saved && typeof saved === "object" ? { ...CONFIG.cloudinary, ...saved } : CONFIG.cloudinary || {};
+  const cloudName = String(cfg.cloudName || "").trim();
+  const uploadPreset = String(cfg.uploadPreset || "").trim();
+  const folder = String(cfg.folder || "").trim();
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Cloudinary no está configurado.");
+  }
+
+  const body = new FormData();
+  body.append("file", file);
+  body.append("upload_preset", uploadPreset);
+  if (folder) body.append("folder", folder);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data || !data.secure_url) {
+    const msg = data?.error?.message ? String(data.error.message) : "No se pudo subir la imagen.";
+    throw new Error(msg);
+  }
+
+  return {
+    url: String(data.secure_url),
+    publicId: String(data.public_id || ""),
+    fileName: String(data.original_filename || file.name || ""),
+  };
+}
+
 function attachProductHandlers(productId) {
   const product = findProduct(productId);
   if (!product) return;
@@ -585,57 +735,99 @@ function attachProductHandlers(productId) {
   refreshPricing();
   refreshCustomizationMode();
 
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const fd = new FormData(form);
-    const size = String(fd.get("size") || "");
-    const color = String(fd.get("color") || "");
-    const placement = String(fd.get("placement") || "");
-    const style = String(fd.get("style") || "");
-    const text = String(fd.get("text") || "").trim();
-    const notes = String(fd.get("notes") || "").trim();
-    const file = fd.get("file");
 
-    const extras = placementPrice(placement);
-    const customization =
-      style === "upload"
-        ? {
-            type: "upload",
-            placement,
-            fileName: file && typeof file === "object" && "name" in file ? file.name : "",
-            notes,
-          }
-        : {
-            type: "text",
-            placement,
-            text,
-            notes,
-          };
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const submitLabel = submitBtn ? submitBtn.textContent : "";
 
-    if (customization.type === "text" && customization.text.length === 0) {
-      alert("Escribí el texto para la estampa.");
-      return;
+    try {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Procesando...";
+      }
+
+      const fd = new FormData(form);
+      const size = String(fd.get("size") || "");
+      const color = String(fd.get("color") || "");
+      const placement = String(fd.get("placement") || "");
+      const style = String(fd.get("style") || "");
+      const text = String(fd.get("text") || "").trim();
+      const notes = String(fd.get("notes") || "").trim();
+      const file = fd.get("file");
+
+      const extras = placementPrice(placement);
+
+      if (style === "upload") {
+        if (!(file instanceof File) || !file.name) {
+          alert("Elegí un archivo de imagen para subir.");
+          return;
+        }
+
+        if (submitBtn) submitBtn.textContent = "Subiendo diseño...";
+
+        const uploaded = await uploadDesignToCloudinary(file);
+        const customization = {
+          type: "upload",
+          placement,
+          fileName: uploaded.fileName || file.name,
+          fileUrl: uploaded.url,
+          filePublicId: uploaded.publicId,
+          notes,
+        };
+
+        const cart = getCart();
+        cart.push({
+          id: makeId("item"),
+          productId: product.id,
+          productName: product.name,
+          variant: { size, color },
+          customization,
+          quantity: 1,
+          unitPrice: product.basePrice,
+          extrasPrice: extras,
+          createdAt: Date.now(),
+        });
+        setCart(cart);
+        navigate("#/carrito");
+        return;
+      }
+
+      const customization = {
+        type: "text",
+        placement,
+        text,
+        notes,
+      };
+
+      if (customization.text.length === 0) {
+        alert("Escribí el texto para la estampa.");
+        return;
+      }
+
+      const cart = getCart();
+      cart.push({
+        id: makeId("item"),
+        productId: product.id,
+        productName: product.name,
+        variant: { size, color },
+        customization,
+        quantity: 1,
+        unitPrice: product.basePrice,
+        extrasPrice: extras,
+        createdAt: Date.now(),
+      });
+      setCart(cart);
+      navigate("#/carrito");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo procesar la acción.";
+      alert(msg);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = submitLabel;
+      }
     }
-
-    if (customization.type === "upload" && (!customization.fileName || customization.fileName.length === 0)) {
-      alert("Elegí un archivo de imagen para subir.");
-      return;
-    }
-
-    const cart = getCart();
-    cart.push({
-      id: makeId("item"),
-      productId: product.id,
-      productName: product.name,
-      variant: { size, color },
-      customization,
-      quantity: 1,
-      unitPrice: product.basePrice,
-      extrasPrice: extras,
-      createdAt: Date.now(),
-    });
-    setCart(cart);
-    navigate("#/carrito");
   });
 }
 
@@ -657,7 +849,9 @@ function renderCart() {
     .map((item) => {
       const customLabel =
         item.customization?.type === "upload"
-          ? `Diseño: ${escapeHtml(item.customization.fileName || "archivo")}`
+          ? item.customization?.fileUrl
+            ? `Diseño: <a href="${escapeHtml(item.customization.fileUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.customization.fileName || "archivo")}</a>`
+            : `Diseño: ${escapeHtml(item.customization.fileName || "archivo")}`
           : `Texto: “${escapeHtml(item.customization?.text || "")}”`;
       const subLabel = `${escapeHtml(item.variant?.size || "")} • ${escapeHtml(
         item.variant?.color || "",
@@ -957,10 +1151,64 @@ function attachCheckoutHandlers() {
   });
 }
 
+function formatCartItemForMessage(item) {
+  const qty = Number(item?.quantity) || 1;
+  const name = String(item?.productName || item?.productId || "Producto");
+  const size = item?.variant?.size ? `Talle: ${item.variant.size}` : "";
+  const color = item?.variant?.color ? `Color: ${item.variant.color}` : "";
+  const placement = item?.customization?.placement ? `Estampa: ${item.customization.placement}` : "";
+
+  let custom = "";
+  if (item?.customization?.type === "upload") {
+    const fileName = String(item.customization.fileName || "archivo");
+    const fileUrl = String(item.customization.fileUrl || "");
+    custom = fileUrl ? `Diseño (link): ${fileUrl}` : `Diseño: ${fileName} (lo adjunto en este chat)`;
+  } else {
+    const text = String(item?.customization?.text || "").trim();
+    custom = text ? `Texto: "${text}"` : "";
+  }
+
+  const notes = item?.customization?.notes ? `Notas: ${item.customization.notes}` : "";
+  const details = [size, color, placement, custom, notes].filter(Boolean).join(" | ");
+
+  return `- ${qty}x ${name}${details ? ` (${details})` : ""}`;
+}
+
 function buildPaymentMessage(order) {
+  const shippingLabel =
+    order?.checkout?.shippingMethod === "delivery"
+      ? CONFIG.shipping.deliveryLabel
+      : CONFIG.shipping.pickupLabel;
+
   const lines = [
     `Hola ${CONFIG.storeName}, hice el pedido #${order.number}.`,
-    `Monto de seña: ${formatMoney(order.totals.deposit)}.`,
+    "",
+    "Datos del pedido:",
+    `Nombre: ${order.checkout.name}`,
+    `WhatsApp: ${order.checkout.whatsapp}`,
+    `Ciudad: ${order.checkout.city}`,
+    `Entrega: ${shippingLabel}`,
+  ];
+
+  if (order?.checkout?.shippingMethod === "delivery" && order?.checkout?.address) {
+    lines.push(`Dirección: ${order.checkout.address}`);
+  }
+
+  if (order?.checkout?.notes) {
+    lines.push(`Notas (checkout): ${order.checkout.notes}`);
+  }
+
+  lines.push("", "Items:");
+  for (const item of order.cart || []) {
+    lines.push(formatCartItemForMessage(item));
+  }
+
+  lines.push(
+    "",
+    `Subtotal: ${formatMoney(order.totals.itemsSubtotal)}`,
+    `Envío: ${formatMoney(order.totals.shippingCost)}`,
+    `Total: ${formatMoney(order.totals.total)}`,
+    `Seña (${(CONFIG.depositPercent * 100).toFixed(0)}%): ${formatMoney(order.totals.deposit)}`,
     "",
     "Datos para transferencia:",
     `Alias: ${CONFIG.bank.alias}`,
@@ -970,13 +1218,24 @@ function buildPaymentMessage(order) {
     "",
     `Referencia: Pedido #${order.number} - ${order.checkout.name}`,
     "",
-    `Te envío el comprobante cuando transfiera.`,
-  ];
+    "Te envío el comprobante cuando transfiera.",
+  );
+
   return lines.join("\n");
 }
 
+function normalizeWhatsappNumber(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("549")) return digits;
+  if (digits.startsWith("54")) return digits;
+  if (digits.length === 11 && digits.startsWith("0")) return `549${digits.slice(1)}`;
+  if (digits.length === 10) return `549${digits}`;
+  return digits;
+}
+
 function buildWhatsappLink(message) {
-  const number = CONFIG.whatsappNumber.replace(/\D/g, "");
+  const number = normalizeWhatsappNumber(CONFIG.whatsappNumber);
   const text = encodeURIComponent(message);
   return `https://wa.me/${number}?text=${text}`;
 }
