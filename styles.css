@@ -226,8 +226,35 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 }
 .design-card:hover{border-color:rgba(242,161,12,.35)}
 .design-card.is-selected{border-color:rgba(242,161,12,.75);background:rgba(242,161,12,.08)}
+.design-card-img{
+  width:100%;
+  height:120px;
+  object-fit:cover;
+  border-radius:12px;
+  display:block;
+  margin-bottom:10px;
+  border:1px solid rgba(42,42,51,.75);
+  background:rgba(11,11,14,.35);
+}
+.design-card-img.placeholder{
+  display:block;
+  background:linear-gradient(135deg, rgba(242,161,12,.18), rgba(140,82,255,.12));
+}
 .design-card-name{font-weight:900;line-height:1.15;margin-bottom:6px}
 .design-card-price{color:var(--primary);font-weight:900}
+
+.design-hero{display:flex;gap:14px;align-items:center;margin-top:12px}
+.design-hero-img{
+  width:110px;
+  height:110px;
+  object-fit:cover;
+  border-radius:16px;
+  border:1px solid rgba(42,42,51,.9);
+  background:rgba(11,11,14,.35);
+}
+.design-hero-img.placeholder{
+  background:linear-gradient(135deg, rgba(242,161,12,.18), rgba(140,82,255,.12));
+}
 
 .btn{
   display:inline-flex;align-items:center;justify-content:center;

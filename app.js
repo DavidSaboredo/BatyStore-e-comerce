@@ -85,9 +85,9 @@ const PERSONALIZATION_PRICING = [
 ];
 
 const DEFAULT_DESIGNS = [
-  { id: "baty-classic", name: "Baty Classic", price: 2500 },
-  { id: "baty-street", name: "Baty Street", price: 3200 },
-  { id: "baty-minimal", name: "Baty Minimal", price: 2000 },
+  { id: "baty-classic", name: "Baty Classic", price: 2500, productId: "remera-basica", allowedSizes: [1, 2, 3, 4, 5, 6] },
+  { id: "baty-street", name: "Baty Street", price: 3200, productId: "remera-basica", allowedSizes: [1, 2, 3, 4, 5, 6] },
+  { id: "baty-minimal", name: "Baty Minimal", price: 2000, productId: "remera-basica", allowedSizes: [1, 2, 3, 4, 5, 6] },
 ];
 
 const MATERIALS = [
@@ -415,6 +415,13 @@ function render() {
     return;
   }
 
+  if (parts[0] === "diseno" && parts[1]) {
+    root.innerHTML = renderDesignOrder(parts[1]);
+    attachDesignOrderHandlers(parts[1]);
+    setupThumbVideos(root);
+    return;
+  }
+
   if (parts[0] === "carrito") {
     root.innerHTML = renderCart();
     attachCartHandlers();
@@ -607,9 +614,32 @@ function renderAdmin(query) {
 
       <form id="adminForm" class="form" autocomplete="off">
         <div class="field full">
+          <label>Nuevo diseño (rápido)</label>
+          <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
+            <input id="newDesignId" placeholder="id (ej: baty-01)" />
+            <input id="newDesignName" placeholder="Nombre" />
+            <input id="newDesignPrice" placeholder="Precio" inputmode="numeric" />
+          </div>
+          <div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-top:10px">
+            <select id="newDesignProduct">
+              ${PRODUCTS.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("")}
+            </select>
+            <input id="newDesignSizes" placeholder="Talles permitidos (ej: 1,2,3,4)" />
+          </div>
+          <div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-top:10px">
+            <input id="newDesignImageUrl" placeholder="URL de imagen (opcional)" style="flex:1;min-width:260px" />
+            <input id="newDesignFile" type="file" accept="image/*" />
+            <button class="btn btn-outline" type="button" id="addDesignToJson">Agregar al JSON</button>
+          </div>
+          <div class="hint">El archivo se sube a Cloudinary y se pega la URL.</div>
+        </div>
+
+        <div class="field full">
           <label for="designsJson">Diseños de la casa (JSON)</label>
           <textarea id="designsJson" name="designsJson" rows="10" class="mono">${designsJson}</textarea>
-          <div class="hint">Formato: [{"id":"baty-classic","name":"Baty Classic","price":2500}]</div>
+          <div class="hint">
+            Formato: [{"id":"baty-01","name":"Baty 01","price":2500,"productId":"remera-basica","allowedSizes":[1,2,3],"imageUrl":"https://..."}]
+          </div>
         </div>
 
         <div class="divider"></div>
@@ -650,6 +680,78 @@ function attachAdminHandlers(query) {
   const key = query?.get("key") || "";
   if (key !== getAdminKey()) return;
 
+  const designsJsonEl = document.getElementById("designsJson");
+  const newDesignFile = document.getElementById("newDesignFile");
+  const newDesignImageUrl = document.getElementById("newDesignImageUrl");
+  const addDesignToJson = document.getElementById("addDesignToJson");
+
+  if (newDesignFile instanceof HTMLInputElement) {
+    newDesignFile.addEventListener("change", async () => {
+      const file = newDesignFile.files && newDesignFile.files[0] ? newDesignFile.files[0] : null;
+      if (!file) return;
+      try {
+        const uploaded = await uploadDesignToCloudinary(file);
+        if (newDesignImageUrl instanceof HTMLInputElement) {
+          newDesignImageUrl.value = uploaded.url;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "No se pudo subir la imagen.";
+        alert(msg);
+      } finally {
+        newDesignFile.value = "";
+      }
+    });
+  }
+
+  if (addDesignToJson) {
+    addDesignToJson.addEventListener("click", () => {
+      if (!(designsJsonEl instanceof HTMLTextAreaElement)) return;
+
+      const id = String(document.getElementById("newDesignId")?.value || "").trim();
+      const name = String(document.getElementById("newDesignName")?.value || "").trim();
+      const price = clampNumber(document.getElementById("newDesignPrice")?.value, 0, 1_000_000);
+      const productId = String(document.getElementById("newDesignProduct")?.value || "").trim();
+      const sizesRaw = String(document.getElementById("newDesignSizes")?.value || "").trim();
+      const imageUrl = String(document.getElementById("newDesignImageUrl")?.value || "").trim();
+
+      if (!id || !name) {
+        alert("Completá id y nombre del diseño.");
+        return;
+      }
+
+      const allowedSizes = sizesRaw
+        ? sizesRaw
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((s) => {
+              const n = Number(s);
+              return Number.isFinite(n) && String(n) === s ? n : s;
+            })
+        : [];
+
+      let list = [];
+      try {
+        const raw = designsJsonEl.value.trim();
+        list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+      } catch {
+        list = [];
+      }
+
+      list.push({
+        id,
+        name,
+        price,
+        productId: productId || "remera-basica",
+        allowedSizes,
+        imageUrl,
+      });
+
+      designsJsonEl.value = JSON.stringify(list, null, 2);
+    });
+  }
+
   const form = document.getElementById("adminForm");
   const backBtn = document.getElementById("adminBack");
   const resetBtn = document.getElementById("adminReset");
@@ -683,7 +785,12 @@ function attachAdminHandlers(query) {
           const name = String(d.name || "").trim();
           const price = Number(d.price) || 0;
           if (!id || !name) return null;
-          return { id, name, price };
+          const productId = typeof d.productId === "string" ? d.productId.trim() : "";
+          const imageUrl = typeof d.imageUrl === "string" ? d.imageUrl.trim() : "";
+          const allowedSizes = Array.isArray(d.allowedSizes)
+            ? d.allowedSizes.filter((s) => s !== null && s !== undefined && String(s).trim().length > 0)
+            : [];
+          return { id, name, price, productId, allowedSizes, imageUrl };
         })
         .filter(Boolean);
       if (designs.length === 0) throw new Error("Cargá al menos 1 diseño");
@@ -730,6 +837,24 @@ function renderCatalog() {
     `;
   }).join("");
 
+  const designs = getDesigns();
+  const designsHtml = designs
+    .map((d) => {
+      const img = typeof d.imageUrl === "string" ? d.imageUrl.trim() : "";
+      const media = img
+        ? `<img class="design-card-img" src="${escapeHtml(img)}" alt="${escapeHtml(d.name)}" loading="lazy" />`
+        : `<div class="design-card-img placeholder"></div>`;
+      const price = designPriceFor(d);
+      return `
+        <button class="design-card" type="button" data-design-order="${escapeHtml(d.id)}">
+          ${media}
+          <div class="design-card-name">${escapeHtml(d.name)}</div>
+          <div class="design-card-price">${price ? `+${formatMoney(price)}` : ""}</div>
+        </button>
+      `;
+    })
+    .join("");
+
   return `
     <div class="stack">
       <section class="hero">
@@ -754,6 +879,15 @@ function renderCatalog() {
         </div>
       </section>
 
+      <section class="panel">
+        <div class="row">
+          <h2 class="panel-title" style="margin:0">Diseños de la casa</h2>
+          <a class="btn btn-outline" href="#/admin?key=${escapeHtml(encodeURIComponent(getAdminKey()))}">Admin</a>
+        </div>
+        <p class="panel-subtitle">Elegí un diseño y pasá directo al pedido.</p>
+        <div class="design-carousel" id="homeDesignCarousel">${designsHtml}</div>
+      </section>
+
       <section class="grid">
         ${itemsHtml}
       </section>
@@ -774,66 +908,196 @@ function attachCatalogHandlers() {
       navigate(`#/producto/${id}`);
     });
   });
+
+  document.querySelectorAll("[data-design-order]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const id = e.currentTarget.getAttribute("data-design-order");
+      navigate(`#/diseno/${id}`);
+    });
+  });
 }
 
 function findProduct(productId) {
   return PRODUCTS.find((p) => p.id === productId) || null;
 }
 
+function renderDesignOrder(designId) {
+  const design = findDesign(designId);
+  if (!design) return renderNotFound();
+
+  const productId = typeof design.productId === "string" && design.productId ? design.productId : "remera-basica";
+  const product = findProduct(productId);
+  if (!product) return renderNotFound();
+
+  const allowed =
+    Array.isArray(design.allowedSizes) && design.allowedSizes.length > 0
+      ? design.allowedSizes.map((s) => String(s))
+      : (product.sizes || []).map((s) => String(s));
+
+  const sizeOptions = allowed
+    .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
+    .join("");
+
+  const colors = (product.colors || [])
+    .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
+    .join("");
+
+  const img = typeof design.imageUrl === "string" ? design.imageUrl.trim() : "";
+  const media = img
+    ? `<img class="design-hero-img" src="${escapeHtml(img)}" alt="${escapeHtml(design.name)}" />`
+    : `<div class="design-hero-img placeholder"></div>`;
+
+  const extra = designPriceFor(design);
+  const estimated = product.basePrice + extra;
+
+  return `
+    <div class="two-col">
+      <section class="panel">
+        <div class="row">
+          <button class="btn" type="button" id="backToCatalog">Volver</button>
+          <div class="pill">Diseño de la casa</div>
+        </div>
+        <div class="design-hero">
+          ${media}
+          <div style="min-width:0">
+            <h1 class="panel-title" style="margin:0">${escapeHtml(design.name)}</h1>
+            <p class="panel-subtitle">Producto: ${escapeHtml(product.name)}</p>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <form id="designOrderForm" class="form" autocomplete="off">
+          <input type="hidden" name="designId" value="${escapeHtml(design.id)}" />
+          <input type="hidden" name="productId" value="${escapeHtml(product.id)}" />
+
+          <div class="field">
+            <label for="size">Talle (según el diseñador)</label>
+            <select id="size" name="size" required>${sizeOptions}</select>
+          </div>
+
+          <div class="field">
+            <label for="color">Color</label>
+            <select id="color" name="color" required>${colors}</select>
+          </div>
+
+          <div class="field full">
+            <label for="notes">Notas</label>
+            <textarea id="notes" name="notes" placeholder="Detalles extra..."></textarea>
+          </div>
+
+          <div class="field full">
+            <div class="row">
+              <button class="btn btn-primary" type="submit">Agregar al carrito</button>
+              <a class="btn btn-outline" href="#/carrito">Ver carrito</a>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <aside class="panel">
+        <h2 class="panel-title">Resumen</h2>
+        <p class="panel-subtitle">Incluye el precio del diseño.</p>
+        <div class="divider"></div>
+
+        <div class="line">
+          <div class="line-title">Producto</div>
+          <div class="mono">${formatMoney(product.basePrice)}</div>
+        </div>
+        <div class="line">
+          <div class="line-title">Diseño</div>
+          <div class="mono">${extra ? `+${formatMoney(extra)}` : formatMoney(0)}</div>
+        </div>
+        <div class="line">
+          <div>
+            <div class="line-title">Total estimado</div>
+            <div class="line-sub">Sin envío</div>
+          </div>
+          <div class="mono">${formatMoney(estimated)}</div>
+        </div>
+
+        <div class="notice" style="margin-top:12px">
+          <div class="notice-title">Seña para confirmar</div>
+          <p class="notice-text">
+            ${formatMoney(Math.ceil(estimated * CONFIG.depositPercent))} (${(CONFIG.depositPercent * 100).toFixed(
+              0,
+            )}%).
+          </p>
+        </div>
+      </aside>
+    </div>
+  `;
+}
+
+function attachDesignOrderHandlers(designId) {
+  const design = findDesign(designId);
+  if (!design) return;
+
+  const productId = typeof design.productId === "string" && design.productId ? design.productId : "remera-basica";
+  const product = findProduct(productId);
+  if (!product) return;
+
+  const backBtn = document.getElementById("backToCatalog");
+  if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
+
+  const form = document.getElementById("designOrderForm");
+  if (!form) return;
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const size = String(fd.get("size") || "").trim();
+    const color = String(fd.get("color") || "").trim();
+    const notes = String(fd.get("notes") || "").trim();
+
+    const allowed =
+      Array.isArray(design.allowedSizes) && design.allowedSizes.length > 0
+        ? design.allowedSizes.map((s) => String(s))
+        : (product.sizes || []).map((s) => String(s));
+    if (!allowed.includes(size)) {
+      alert("El talle seleccionado no está disponible para este diseño.");
+      return;
+    }
+
+    const cart = getCart();
+    cart.push({
+      id: makeId("item"),
+      productId: product.id,
+      productName: product.name,
+      variant: { size, color },
+      customization: {
+        type: "house",
+        designId: String(design.id),
+        designName: String(design.name || ""),
+        designPrice: designPriceFor(design),
+        imageUrl: typeof design.imageUrl === "string" ? design.imageUrl.trim() : "",
+        notes,
+      },
+      quantity: 1,
+      unitPrice: product.basePrice,
+      extrasPrice: designPriceFor(design),
+      createdAt: Date.now(),
+    });
+    setCart(cart);
+    navigate("#/carrito");
+  });
+}
+
 function renderProduct(productId) {
   const product = findProduct(productId);
   if (!product) return renderNotFound();
 
-  const isHat = isHatProduct(product);
-
-  const colors = product.colors
+  const sizes = (product.sizes || [])
+    .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
+    .join("");
+  const colors = (product.colors || [])
     .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
     .join("");
-
-  const materialOptions = MATERIALS.map(
-    (m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`,
-  ).join("");
-
-  const materialField = isHat
-    ? ""
-    : `
-          <div class="field">
-            <label for="material">Material</label>
-            <select id="material" name="material" required>${materialOptions}</select>
-          </div>
-    `;
-
-  const sizeOptions = isHat
-    ? `<option value="Único">Único</option>`
-    : Array.from({ length: 10 }, (_, i) => {
-        const v = String(i + 1);
-        return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
-      }).join("");
-
-  const stampSizeOptions = isHat
-    ? `<option value="chico">Chico</option>`
-    : STAMP_SIZES.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.label)}</option>`).join(
-        "",
-      );
-
-  const stampLocationOptions = isHat
-    ? `<option value="delantera">Delantera</option>`
-    : STAMP_LOCATIONS.map(
-        (l) => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.label)}</option>`,
-      ).join("");
-
-  const designs = getDesigns();
-  const defaultDesignId = designs[0]?.id || "";
-  const designsHtml = designs
-    .map((d, idx) => {
-      const selected = idx === 0 ? " is-selected" : "";
-      return `
-        <button class="design-card${selected}" type="button" data-design="${escapeHtml(d.id)}">
-          <div class="design-card-name">${escapeHtml(d.name)}</div>
-          <div class="design-card-price">+${formatMoney(designPriceFor(d))}</div>
-        </button>
-      `;
-    })
+  const placements = (product.placements || [])
+    .map(
+      (pl) =>
+        `<option value="${escapeHtml(pl)}">${escapeHtml(pl)} (+${formatMoney(placementPrice(pl))})</option>`,
+    )
     .join("");
 
   return `
@@ -852,11 +1116,9 @@ function renderProduct(productId) {
         <div class="divider"></div>
 
         <form id="customForm" class="form" autocomplete="off">
-          ${materialField}
-
           <div class="field">
             <label for="size">Talle</label>
-            <select id="size" name="size" required ${isHat ? "disabled" : ""}>${sizeOptions}</select>
+            <select id="size" name="size" required>${sizes}</select>
           </div>
 
           <div class="field">
@@ -865,26 +1127,22 @@ function renderProduct(productId) {
           </div>
 
           <div class="field">
-            <label for="stampSize">Tamaño de estampa</label>
-            <select id="stampSize" name="stampSize" required ${isHat ? "disabled" : ""}>${stampSizeOptions}</select>
-          </div>
-          <div class="field">
-            <label for="stampLocation">Ubicación</label>
-            <select id="stampLocation" name="stampLocation" required ${isHat ? "disabled" : ""}>${stampLocationOptions}</select>
+            <label for="placement">Ubicación de la estampa</label>
+            <select id="placement" name="placement" required>${placements}</select>
           </div>
 
           <div class="field">
-            <label for="style">Diseño</label>
+            <label for="style">Tipo</label>
             <select id="style" name="style" required>
-              <option value="house">Diseños de la casa</option>
-              <option value="upload">Subir mi diseño</option>
+              <option value="text">Texto</option>
+              <option value="upload">Subir diseño</option>
             </select>
           </div>
 
-          <div class="field full" id="houseField">
-            <div class="hint">Elegí un diseño. El precio se suma automáticamente.</div>
-            <div class="design-carousel" id="designCarousel">${designsHtml}</div>
-            <input type="hidden" id="designId" name="designId" value="${escapeHtml(defaultDesignId)}" />
+          <div class="field full" id="textField">
+            <label for="text">Texto</label>
+            <input id="text" name="text" placeholder="Ej: BATY" maxlength="24" />
+            <div class="hint">Máximo 24 caracteres. La vista previa es referencial.</div>
           </div>
 
           <div class="field full" id="uploadField" style="display:none">
@@ -981,95 +1239,24 @@ function attachProductHandlers(productId) {
   if (!product) return;
 
   const form = document.getElementById("customForm");
-  const materialSelect = document.getElementById("material");
   const sizeSelect = document.getElementById("size");
   const colorSelect = document.getElementById("color");
-  const stampSizeSelect = document.getElementById("stampSize");
-  const stampLocationSelect = document.getElementById("stampLocation");
+  const placementSelect = document.getElementById("placement");
   const styleSelect = document.getElementById("style");
+  const textField = document.getElementById("textField");
   const uploadField = document.getElementById("uploadField");
-  const houseField = document.getElementById("houseField");
-  const designCarousel = document.getElementById("designCarousel");
-  const designIdInput = document.getElementById("designId");
   const placementLabel = document.getElementById("placementLabel");
   const placementPriceEl = document.getElementById("placementPrice");
   const estimatedTotalEl = document.getElementById("estimatedTotal");
   const depositHint = document.getElementById("depositHint");
   const backBtn = document.getElementById("backToCatalog");
 
-  const isHat = isHatProduct(product);
-
-  function currentMaterial() {
-    const materialId = String(materialSelect?.value || "").trim();
-    return MATERIALS.find((m) => m.id === materialId) || MATERIALS[0];
-  }
-
-  function refreshSizeOptions() {
-    if (isHat) return;
-    if (!(materialSelect instanceof HTMLSelectElement)) return;
-    if (!(sizeSelect instanceof HTMLSelectElement)) return;
-
-    const max = currentMaterial().maxSize ?? 10;
-    const previous = Number(sizeSelect.value);
-
-    sizeSelect.innerHTML = Array.from({ length: max }, (_, i) => {
-      const v = String(i + 1);
-      return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
-    }).join("");
-
-    if (Number.isFinite(previous) && previous >= 1 && previous <= max) {
-      sizeSelect.value = String(previous);
-    }
-  }
-
-  function setSelectedDesign(designId) {
-    if (designIdInput instanceof HTMLInputElement) {
-      designIdInput.value = designId;
-    }
-
-    if (designCarousel) {
-      designCarousel.querySelectorAll("[data-design]").forEach((btn) => {
-        const id = btn.getAttribute("data-design") || "";
-        if (id === designId) btn.classList.add("is-selected");
-        else btn.classList.remove("is-selected");
-      });
-    }
-
-    refreshPricing();
-  }
-
-  function refreshDesignMode() {
-    const mode = String(styleSelect?.value || "house");
-    if (mode === "upload") {
-      if (houseField) houseField.style.display = "none";
-      if (uploadField) uploadField.style.display = "";
-    } else {
-      if (houseField) houseField.style.display = "";
-      if (uploadField) uploadField.style.display = "none";
-    }
-    refreshPricing();
-  }
-
   function refreshPricing() {
-    const enforcedStampSize = isHat ? "chico" : String(stampSizeSelect?.value || "chico");
-    const enforcedStampLocation = isHat ? "delantera" : String(stampLocationSelect?.value || "delantera");
-
-    const stampExtra = stampPriceFor(product, enforcedStampSize);
-    const mode = String(styleSelect?.value || "house");
-    const designId = String((designIdInput instanceof HTMLInputElement ? designIdInput.value : "") || "");
-    const design = mode === "house" ? findDesign(designId) : null;
-    const designExtra = design ? designPriceFor(design) : 0;
-
-    const extras = stampExtra + designExtra;
-    const estimated = product.basePrice + extras;
-
-    if (placementLabel) {
-      const locLabel = STAMP_LOCATIONS.find((l) => l.id === enforcedStampLocation)?.label || enforcedStampLocation;
-      const sizeLabel = STAMP_SIZES.find((s) => s.id === enforcedStampSize)?.label || enforcedStampSize;
-      const designLabel = design ? design.name : mode === "upload" ? "Diseño subido" : "Diseño";
-      placementLabel.textContent = `${designLabel} • ${sizeLabel} en ${locLabel}`;
-    }
-    if (placementPriceEl) placementPriceEl.textContent = formatMoney(extras);
+    const placement = placementSelect.value;
+    const extra = placementPrice(placement);
+    const estimated = product.basePrice + extra;
+    if (placementLabel) placementLabel.textContent = placement;
+    if (placementPriceEl) placementPriceEl.textContent = formatMoney(extra);
     if (estimatedTotalEl) estimatedTotalEl.textContent = formatMoney(estimated);
     if (depositHint) {
       depositHint.textContent = `Seña estimada: ${formatMoney(
@@ -1078,28 +1265,22 @@ function attachProductHandlers(productId) {
     }
   }
 
-  if (materialSelect) {
-    materialSelect.addEventListener("change", () => {
-      refreshSizeOptions();
-      refreshPricing();
-    });
+  function refreshCustomizationMode() {
+    const mode = String(styleSelect?.value || "text");
+    if (mode === "upload") {
+      if (textField) textField.style.display = "none";
+      if (uploadField) uploadField.style.display = "";
+    } else {
+      if (textField) textField.style.display = "";
+      if (uploadField) uploadField.style.display = "none";
+    }
   }
-  if (stampSizeSelect) stampSizeSelect.addEventListener("change", refreshPricing);
-  if (stampLocationSelect) stampLocationSelect.addEventListener("change", refreshPricing);
-  if (styleSelect) styleSelect.addEventListener("change", refreshDesignMode);
+
+  if (placementSelect) placementSelect.addEventListener("change", refreshPricing);
+  if (styleSelect) styleSelect.addEventListener("change", refreshCustomizationMode);
   if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
 
-  if (designCarousel) {
-    designCarousel.querySelectorAll("[data-design]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-design") || "";
-        if (id) setSelectedDesign(id);
-      });
-    });
-  }
-
-  refreshSizeOptions();
-  refreshDesignMode();
+  refreshCustomizationMode();
   refreshPricing();
 
   form.addEventListener("submit", async (e) => {
@@ -1115,25 +1296,15 @@ function attachProductHandlers(productId) {
       }
 
       const fd = new FormData(form);
-      const material = String(fd.get("material") || "").trim();
       const size = String(fd.get("size") || "").trim();
       const color = String(fd.get("color") || "").trim();
-      const stampSize = String(fd.get("stampSize") || "chico").trim();
-      const stampLocation = String(fd.get("stampLocation") || "delantera").trim();
-      const style = String(fd.get("style") || "house").trim();
-      const designId = String(fd.get("designId") || "").trim();
+      const placement = String(fd.get("placement") || "").trim();
+      const style = String(fd.get("style") || "text").trim();
+      const text = String(fd.get("text") || "").trim();
       const notes = String(fd.get("notes") || "").trim();
       const file = fd.get("file");
 
-      if (!isHat && !material) {
-        alert("Elegí el material.");
-        return;
-      }
-
-      const enforcedStampSize = isHat ? "chico" : stampSize;
-      const enforcedStampLocation = isHat ? "delantera" : stampLocation;
-      const enforcedSize = isHat ? "Único" : size;
-      const stampExtra = stampPriceFor(product, enforcedStampSize);
+      const extras = placementPrice(placement);
 
       if (style === "upload") {
         if (!(file instanceof File) || !file.name) {
@@ -1145,10 +1316,8 @@ function attachProductHandlers(productId) {
 
         const uploaded = await uploadDesignToCloudinary(file);
         const customization = {
-          designMode: "upload",
-          material: isHat ? "" : material,
-          stampSize: enforcedStampSize,
-          stampLocation: enforcedStampLocation,
+          type: "upload",
+          placement,
           fileName: uploaded.fileName || file.name,
           fileUrl: uploaded.url,
           filePublicId: uploaded.publicId,
@@ -1160,11 +1329,11 @@ function attachProductHandlers(productId) {
           id: makeId("item"),
           productId: product.id,
           productName: product.name,
-          variant: { size: enforcedSize, color },
+          variant: { size, color },
           customization,
           quantity: 1,
           unitPrice: product.basePrice,
-          extrasPrice: stampExtra,
+          extrasPrice: extras,
           createdAt: Date.now(),
         });
         setCart(cart);
@@ -1172,21 +1341,15 @@ function attachProductHandlers(productId) {
         return;
       }
 
-      const design = findDesign(designId);
-      if (!design) {
-        alert("Elegí un diseño de la casa.");
+      if (!text) {
+        alert("Escribí el texto para la estampa.");
         return;
       }
 
-      const designExtra = designPriceFor(design);
       const customization = {
-        designMode: "house",
-        material: isHat ? "" : material,
-        stampSize: enforcedStampSize,
-        stampLocation: enforcedStampLocation,
-        designId: design.id,
-        designName: design.name,
-        designPrice: designExtra,
+        type: "text",
+        placement,
+        text,
         notes,
       };
 
@@ -1195,11 +1358,11 @@ function attachProductHandlers(productId) {
         id: makeId("item"),
         productId: product.id,
         productName: product.name,
-        variant: { size: enforcedSize, color },
+        variant: { size, color },
         customization,
         quantity: 1,
         unitPrice: product.basePrice,
-        extrasPrice: stampExtra + designExtra,
+        extrasPrice: extras,
         createdAt: Date.now(),
       });
       setCart(cart);
@@ -1232,27 +1395,35 @@ function renderCart() {
 
   const lines = cart
     .map((item) => {
-      const stampSize = String(item.customization?.stampSize || "");
-      const stampLocation = String(item.customization?.stampLocation || "");
-      const sizeLabel = STAMP_SIZES.find((s) => s.id === stampSize)?.label || stampSize;
-      const locLabel = STAMP_LOCATIONS.find((l) => l.id === stampLocation)?.label || stampLocation;
+      const sizeLabel = escapeHtml(item.variant?.size || "");
+      const colorLabel = escapeHtml(item.variant?.color || "");
+      const placementLabel = escapeHtml(item.customization?.placement || "");
 
-      const designLabel =
-        item.customization?.designMode === "house"
-          ? `Diseño: ${escapeHtml(item.customization?.designName || "Diseño")}`
-          : item.customization?.fileUrl
-            ? `Diseño: <a href="${escapeHtml(item.customization.fileUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.customization.fileName || "archivo")}</a>`
-            : item.customization?.fileName
-              ? `Diseño: ${escapeHtml(item.customization.fileName)}`
-              : "Diseño: —";
+      const kind = String(item.customization?.type || "");
 
-      const materialLabel = item.customization?.material ? ` • ${escapeHtml(item.customization.material)}` : "";
-      const stampLabel = sizeLabel && locLabel ? ` • ${escapeHtml(sizeLabel)} en ${escapeHtml(locLabel)}` : "";
+      let subLabel = `${sizeLabel} • ${colorLabel}`;
+      let customLabel = "";
 
-      const subLabel = `${escapeHtml(item.variant?.size || "")} • ${escapeHtml(
-        item.variant?.color || "",
-      )}${materialLabel}${stampLabel}`;
-      const customLabel = designLabel;
+      if (kind === "house") {
+        const name = escapeHtml(item.customization?.designName || "Diseño de la casa");
+        const url = String(item.customization?.imageUrl || "").trim();
+        customLabel = url
+          ? `Diseño: <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${name}</a>`
+          : `Diseño: ${name}`;
+        subLabel = `${subLabel} • Diseño de la casa`;
+      } else if (kind === "upload") {
+        const fileUrl = String(item.customization?.fileUrl || "").trim();
+        const fileName = escapeHtml(item.customization?.fileName || "archivo");
+        customLabel = fileUrl
+          ? `Diseño: <a href="${escapeHtml(fileUrl)}" target="_blank" rel="noreferrer">${fileName}</a>`
+          : `Diseño: ${fileName}`;
+        if (placementLabel) subLabel = `${subLabel} • ${placementLabel}`;
+      } else {
+        const text = escapeHtml(item.customization?.text || "");
+        customLabel = `Texto: “${text}”`;
+        if (placementLabel) subLabel = `${subLabel} • ${placementLabel}`;
+      }
+
       return `
         <div class="line">
           <div style="min-width:0">
@@ -1552,25 +1723,28 @@ function formatCartItemForMessage(item) {
   const qty = Number(item?.quantity) || 1;
   const name = String(item?.productName || item?.productId || "Producto");
 
-  const designName =
-    item?.customization?.designMode === "house"
-      ? String(item.customization.designName || "")
-      : String(item?.customization?.fileUrl || item?.customization?.fileName || "");
-
-  const material = String(item?.customization?.material || "-");
+  const kind = String(item?.customization?.type || "");
   const talle = String(item?.variant?.size || "-");
-
-  const stampSize = String(item?.customization?.stampSize || "-");
-  const stampLocation = String(item?.customization?.stampLocation || "-");
-  const stampSizeLabel = STAMP_SIZES.find((s) => s.id === stampSize)?.label || stampSize;
-  const stampLocLabel = STAMP_LOCATIONS.find((l) => l.id === stampLocation)?.label || stampLocation;
-
   const color = item?.variant?.color ? ` | Color: ${item.variant.color}` : "";
   const notes = item?.customization?.notes ? ` | Notas: ${item.customization.notes}` : "";
 
-  const core = `Diseño: ${designName || "-"} | Material: ${material} | Talle: ${talle} | Estampa: ${stampSizeLabel} en ${stampLocLabel}`;
+  if (kind === "house") {
+    const designName = String(item?.customization?.designName || "-");
+    const imageUrl = String(item?.customization?.imageUrl || "").trim();
+    const img = imageUrl ? ` | Imagen: ${imageUrl}` : "";
+    return `- ${qty}x ${name} (Diseño: ${designName} | Talle: ${talle}${color}${img}${notes})`;
+  }
 
-  return `- ${qty}x ${name} (${core}${color}${notes})`;
+  const placement = String(item?.customization?.placement || "-");
+  if (kind === "upload") {
+    const fileUrl = String(item?.customization?.fileUrl || "").trim();
+    const fileName = String(item?.customization?.fileName || "-");
+    const design = fileUrl ? fileUrl : fileName;
+    return `- ${qty}x ${name} (Diseño: ${design} | Talle: ${talle} | Ubicación: ${placement}${color}${notes})`;
+  }
+
+  const text = String(item?.customization?.text || "-");
+  return `- ${qty}x ${name} (Texto: ${text} | Talle: ${talle} | Ubicación: ${placement}${color}${notes})`;
 }
 
 function buildPaymentMessage(order) {
