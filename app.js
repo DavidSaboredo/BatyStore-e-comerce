@@ -21,6 +21,7 @@ const CONFIG = {
   depositPercent: 0.3,
   depositHoursLimit: 48,
   whatsappNumber: "3442409755",
+  adminKey: "batystore-admin",
   bank: {
     alias: "BATYSTORE.ALIAS",
     cvuCbu: "0000000000000000000000",
@@ -81,6 +82,31 @@ const PERSONALIZATION_PRICING = [
   { placement: "Frente grande", price: 6900 },
   { placement: "Espalda grande", price: 7900 },
   { placement: "Frente", price: 4900 },
+];
+
+const DEFAULT_DESIGNS = [
+  { id: "baty-classic", name: "Baty Classic", price: 2500 },
+  { id: "baty-street", name: "Baty Street", price: 3200 },
+  { id: "baty-minimal", name: "Baty Minimal", price: 2000 },
+];
+
+const MATERIALS = [
+  { id: "peinado", label: "Algodón Peinado", maxSize: 6 },
+  { id: "algodon100", label: "Algodón 100%", maxSize: 10 },
+];
+
+const STAMP_SIZES = [
+  { id: "chico", label: "Chico" },
+  { id: "mediano", label: "Mediano" },
+  { id: "grande", label: "Grande" },
+];
+
+const STAMP_LOCATIONS = [
+  { id: "delantera", label: "Adelante" },
+  { id: "trasera", label: "Atrás" },
+  { id: "nuca", label: "Superior trasera (nuca)" },
+  { id: "pecho-izq", label: "Pecho (izq)" },
+  { id: "pecho-der", label: "Pecho (der)" },
 ];
 
 /* ===== Persistencia (localStorage) ===== */
@@ -228,6 +254,53 @@ function renderThumbMedia(product) {
 function placementPrice(placement) {
   const match = PERSONALIZATION_PRICING.find((p) => p.placement === placement);
   return match ? match.price : 0;
+}
+
+function getDesigns() {
+  const saved = getSettings()?.designs;
+  if (Array.isArray(saved) && saved.length > 0) return saved;
+  return DEFAULT_DESIGNS;
+}
+
+function findDesign(designId) {
+  return getDesigns().find((d) => d && d.id === designId) || null;
+}
+
+function getPricing() {
+  const saved = getSettings()?.pricing;
+  const base = {
+    stampSizes: { chico: 4500, mediano: 6900, grande: 7900 },
+    hatStamp: 4900,
+    designOverrideById: {},
+  };
+  if (!saved || typeof saved !== "object") return base;
+
+  const out = { ...base };
+  if (saved.stampSizes && typeof saved.stampSizes === "object") {
+    out.stampSizes = { ...out.stampSizes, ...saved.stampSizes };
+  }
+  if (typeof saved.hatStamp === "number") out.hatStamp = saved.hatStamp;
+  if (saved.designOverrideById && typeof saved.designOverrideById === "object") {
+    out.designOverrideById = { ...out.designOverrideById, ...saved.designOverrideById };
+  }
+  return out;
+}
+
+function isHatProduct(product) {
+  return String(product?.type || "") === "Gorra";
+}
+
+function stampPriceFor(product, stampSizeId) {
+  const pricing = getPricing();
+  if (isHatProduct(product)) return pricing.hatStamp;
+  return pricing.stampSizes?.[stampSizeId] ?? 0;
+}
+
+function designPriceFor(design) {
+  if (!design) return 0;
+  const pricing = getPricing();
+  const override = pricing.designOverrideById?.[design.id];
+  return typeof override === "number" ? override : Number(design.price) || 0;
 }
 
 function computeItemTotal(item) {
@@ -381,6 +454,12 @@ function render() {
     return;
   }
 
+  if (parts[0] === "admin") {
+    root.innerHTML = renderAdmin(query);
+    attachAdminHandlers(query);
+    return;
+  }
+
   root.innerHTML = renderNotFound();
   setupThumbVideos(root);
 }
@@ -488,6 +567,148 @@ function getCloudinaryConfig() {
   return cfg;
 }
 
+function getAdminKey() {
+  const cfgKey = typeof CONFIG.adminKey === "string" ? CONFIG.adminKey.trim() : "";
+  if (cfgKey) return cfgKey;
+  return "batystore-admin";
+}
+
+function renderAdmin(query) {
+  const key = query?.get("key") || "";
+  if (key !== getAdminKey()) {
+    return `
+      <section class="panel">
+        <h1 class="panel-title">Admin</h1>
+        <p class="panel-subtitle">Acceso restringido.</p>
+        <div class="notice">
+          <div class="notice-title">Link de acceso</div>
+          <p class="notice-text"><span class="mono">#/admin?key=...</span></p>
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" id="goCatalog">Ir al catálogo</button>
+        </div>
+      </section>
+    `;
+  }
+
+  const designs = getDesigns();
+  const designsJson = escapeHtml(JSON.stringify(designs, null, 2));
+  const pricing = getPricing();
+  const chico = Number(pricing.stampSizes?.chico) || 0;
+  const mediano = Number(pricing.stampSizes?.mediano) || 0;
+  const grande = Number(pricing.stampSizes?.grande) || 0;
+  const hatStamp = Number(pricing.hatStamp) || 0;
+
+  return `
+    <section class="panel">
+      <h1 class="panel-title">Admin</h1>
+      <p class="panel-subtitle">Cambios guardados en este navegador.</p>
+      <div class="divider"></div>
+
+      <form id="adminForm" class="form" autocomplete="off">
+        <div class="field full">
+          <label for="designsJson">Diseños de la casa (JSON)</label>
+          <textarea id="designsJson" name="designsJson" rows="10" class="mono">${designsJson}</textarea>
+          <div class="hint">Formato: [{"id":"baty-classic","name":"Baty Classic","price":2500}]</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <label for="priceChico">Estampa chico</label>
+          <input id="priceChico" name="priceChico" inputmode="numeric" value="${escapeHtml(chico)}" />
+        </div>
+        <div class="field">
+          <label for="priceMediano">Estampa mediano</label>
+          <input id="priceMediano" name="priceMediano" inputmode="numeric" value="${escapeHtml(mediano)}" />
+        </div>
+        <div class="field">
+          <label for="priceGrande">Estampa grande</label>
+          <input id="priceGrande" name="priceGrande" inputmode="numeric" value="${escapeHtml(grande)}" />
+        </div>
+        <div class="field">
+          <label for="priceHat">Gorra (estampa)</label>
+          <input id="priceHat" name="priceHat" inputmode="numeric" value="${escapeHtml(hatStamp)}" />
+        </div>
+
+        <div class="field full">
+          <div class="row">
+            <button class="btn" type="button" id="adminBack">Volver</button>
+            <button class="btn btn-outline" type="button" id="adminReset">Restaurar</button>
+            <button class="btn btn-primary" type="submit">Guardar</button>
+          </div>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+function attachAdminHandlers(query) {
+  const goCatalog = document.getElementById("goCatalog");
+  if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
+
+  const key = query?.get("key") || "";
+  if (key !== getAdminKey()) return;
+
+  const form = document.getElementById("adminForm");
+  const backBtn = document.getElementById("adminBack");
+  const resetBtn = document.getElementById("adminReset");
+
+  if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      const next = { ...getSettings() };
+      delete next.designs;
+      delete next.pricing;
+      setSettings(next);
+      render();
+    });
+  }
+
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+
+    let designs = [];
+    try {
+      const raw = String(fd.get("designsJson") || "").trim();
+      designs = JSON.parse(raw);
+      if (!Array.isArray(designs)) throw new Error("JSON inválido");
+      designs = designs
+        .map((d) => {
+          if (!d || typeof d !== "object") return null;
+          const id = String(d.id || "").trim();
+          const name = String(d.name || "").trim();
+          const price = Number(d.price) || 0;
+          if (!id || !name) return null;
+          return { id, name, price };
+        })
+        .filter(Boolean);
+      if (designs.length === 0) throw new Error("Cargá al menos 1 diseño");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo leer el JSON";
+      alert(msg);
+      return;
+    }
+
+    const priceChico = clampNumber(fd.get("priceChico"), 0, 1_000_000);
+    const priceMediano = clampNumber(fd.get("priceMediano"), 0, 1_000_000);
+    const priceGrande = clampNumber(fd.get("priceGrande"), 0, 1_000_000);
+    const priceHat = clampNumber(fd.get("priceHat"), 0, 1_000_000);
+
+    const next = { ...getSettings() };
+    next.designs = designs;
+    next.pricing = {
+      stampSizes: { chico: priceChico, mediano: priceMediano, grande: priceGrande },
+      hatStamp: priceHat,
+    };
+    setSettings(next);
+    navigate("#/");
+  });
+}
+
 function renderCatalog() {
   const itemsHtml = PRODUCTS.map((p) => {
     return `
@@ -563,19 +784,56 @@ function renderProduct(productId) {
   const product = findProduct(productId);
   if (!product) return renderNotFound();
 
-  const sizes = product.sizes
-    .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
-    .join("");
+  const isHat = isHatProduct(product);
+
   const colors = product.colors
     .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
     .join("");
-  const placements = product.placements
-    .map(
-      (pl) =>
-        `<option value="${escapeHtml(pl)}">${escapeHtml(pl)} (+${formatMoney(
-          placementPrice(pl),
-        )})</option>`,
-    )
+
+  const materialOptions = MATERIALS.map(
+    (m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`,
+  ).join("");
+
+  const materialField = isHat
+    ? ""
+    : `
+          <div class="field">
+            <label for="material">Material</label>
+            <select id="material" name="material" required>${materialOptions}</select>
+          </div>
+    `;
+
+  const sizeOptions = isHat
+    ? `<option value="Único">Único</option>`
+    : Array.from({ length: 10 }, (_, i) => {
+        const v = String(i + 1);
+        return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
+      }).join("");
+
+  const stampSizeOptions = isHat
+    ? `<option value="chico">Chico</option>`
+    : STAMP_SIZES.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.label)}</option>`).join(
+        "",
+      );
+
+  const stampLocationOptions = isHat
+    ? `<option value="delantera">Delantera</option>`
+    : STAMP_LOCATIONS.map(
+        (l) => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.label)}</option>`,
+      ).join("");
+
+  const designs = getDesigns();
+  const defaultDesignId = designs[0]?.id || "";
+  const designsHtml = designs
+    .map((d, idx) => {
+      const selected = idx === 0 ? " is-selected" : "";
+      return `
+        <button class="design-card${selected}" type="button" data-design="${escapeHtml(d.id)}">
+          <div class="design-card-name">${escapeHtml(d.name)}</div>
+          <div class="design-card-price">+${formatMoney(designPriceFor(d))}</div>
+        </button>
+      `;
+    })
     .join("");
 
   return `
@@ -594,37 +852,45 @@ function renderProduct(productId) {
         <div class="divider"></div>
 
         <form id="customForm" class="form" autocomplete="off">
+          ${materialField}
+
           <div class="field">
             <label for="size">Talle</label>
-            <select id="size" name="size" required>${sizes}</select>
+            <select id="size" name="size" required ${isHat ? "disabled" : ""}>${sizeOptions}</select>
           </div>
+
           <div class="field">
             <label for="color">Color</label>
             <select id="color" name="color" required>${colors}</select>
           </div>
 
           <div class="field">
-            <label for="placement">Ubicación de la estampa</label>
-            <select id="placement" name="placement" required>${placements}</select>
+            <label for="stampSize">Tamaño de estampa</label>
+            <select id="stampSize" name="stampSize" required ${isHat ? "disabled" : ""}>${stampSizeOptions}</select>
           </div>
           <div class="field">
-            <label for="style">Tipo</label>
+            <label for="stampLocation">Ubicación</label>
+            <select id="stampLocation" name="stampLocation" required ${isHat ? "disabled" : ""}>${stampLocationOptions}</select>
+          </div>
+
+          <div class="field">
+            <label for="style">Diseño</label>
             <select id="style" name="style" required>
-              <option value="text">Texto</option>
-              <option value="upload">Subir diseño</option>
+              <option value="house">Diseños de la casa</option>
+              <option value="upload">Subir mi diseño</option>
             </select>
           </div>
 
-          <div class="field full" id="textField">
-            <label for="text">Texto</label>
-            <input id="text" name="text" placeholder="Ej: BATY" maxlength="24" />
-            <div class="hint">Máximo 24 caracteres. La vista previa es referencial.</div>
+          <div class="field full" id="houseField">
+            <div class="hint">Elegí un diseño. El precio se suma automáticamente.</div>
+            <div class="design-carousel" id="designCarousel">${designsHtml}</div>
+            <input type="hidden" id="designId" name="designId" value="${escapeHtml(defaultDesignId)}" />
           </div>
 
           <div class="field full" id="uploadField" style="display:none">
             <label for="file">Archivo</label>
             <input id="file" name="file" type="file" accept="image/*" />
-            <div class="hint">Se valida antes de producir. Si no es apto, te pedimos otro.</div>
+            <div class="hint">Se sube automáticamente y se envía el link en el pedido.</div>
           </div>
 
           <div class="field full">
@@ -715,45 +981,126 @@ function attachProductHandlers(productId) {
   if (!product) return;
 
   const form = document.getElementById("customForm");
-  const placementSelect = document.getElementById("placement");
+  const materialSelect = document.getElementById("material");
+  const sizeSelect = document.getElementById("size");
+  const colorSelect = document.getElementById("color");
+  const stampSizeSelect = document.getElementById("stampSize");
+  const stampLocationSelect = document.getElementById("stampLocation");
   const styleSelect = document.getElementById("style");
-  const textField = document.getElementById("textField");
   const uploadField = document.getElementById("uploadField");
+  const houseField = document.getElementById("houseField");
+  const designCarousel = document.getElementById("designCarousel");
+  const designIdInput = document.getElementById("designId");
   const placementLabel = document.getElementById("placementLabel");
   const placementPriceEl = document.getElementById("placementPrice");
   const estimatedTotalEl = document.getElementById("estimatedTotal");
   const depositHint = document.getElementById("depositHint");
   const backBtn = document.getElementById("backToCatalog");
 
-  function refreshPricing() {
-    const placement = placementSelect.value;
-    const extra = placementPrice(placement);
-    const estimated = product.basePrice + extra;
-    placementLabel.textContent = placement;
-    placementPriceEl.textContent = formatMoney(extra);
-    estimatedTotalEl.textContent = formatMoney(estimated);
-    depositHint.textContent = `Seña estimada: ${formatMoney(
-      Math.ceil(estimated * CONFIG.depositPercent),
-    )} (${(CONFIG.depositPercent * 100).toFixed(0)}%).`;
+  const isHat = isHatProduct(product);
+
+  function currentMaterial() {
+    const materialId = String(materialSelect?.value || "").trim();
+    return MATERIALS.find((m) => m.id === materialId) || MATERIALS[0];
   }
 
-  function refreshCustomizationMode() {
-    const mode = styleSelect.value;
-    if (mode === "upload") {
-      textField.style.display = "none";
-      uploadField.style.display = "";
-    } else {
-      textField.style.display = "";
-      uploadField.style.display = "none";
+  function refreshSizeOptions() {
+    if (isHat) return;
+    if (!(materialSelect instanceof HTMLSelectElement)) return;
+    if (!(sizeSelect instanceof HTMLSelectElement)) return;
+
+    const max = currentMaterial().maxSize ?? 10;
+    const previous = Number(sizeSelect.value);
+
+    sizeSelect.innerHTML = Array.from({ length: max }, (_, i) => {
+      const v = String(i + 1);
+      return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
+    }).join("");
+
+    if (Number.isFinite(previous) && previous >= 1 && previous <= max) {
+      sizeSelect.value = String(previous);
     }
   }
 
-  placementSelect.addEventListener("change", refreshPricing);
-  styleSelect.addEventListener("change", refreshCustomizationMode);
-  backBtn.addEventListener("click", () => navigate("#/"));
+  function setSelectedDesign(designId) {
+    if (designIdInput instanceof HTMLInputElement) {
+      designIdInput.value = designId;
+    }
 
+    if (designCarousel) {
+      designCarousel.querySelectorAll("[data-design]").forEach((btn) => {
+        const id = btn.getAttribute("data-design") || "";
+        if (id === designId) btn.classList.add("is-selected");
+        else btn.classList.remove("is-selected");
+      });
+    }
+
+    refreshPricing();
+  }
+
+  function refreshDesignMode() {
+    const mode = String(styleSelect?.value || "house");
+    if (mode === "upload") {
+      if (houseField) houseField.style.display = "none";
+      if (uploadField) uploadField.style.display = "";
+    } else {
+      if (houseField) houseField.style.display = "";
+      if (uploadField) uploadField.style.display = "none";
+    }
+    refreshPricing();
+  }
+
+  function refreshPricing() {
+    const enforcedStampSize = isHat ? "chico" : String(stampSizeSelect?.value || "chico");
+    const enforcedStampLocation = isHat ? "delantera" : String(stampLocationSelect?.value || "delantera");
+
+    const stampExtra = stampPriceFor(product, enforcedStampSize);
+    const mode = String(styleSelect?.value || "house");
+    const designId = String((designIdInput instanceof HTMLInputElement ? designIdInput.value : "") || "");
+    const design = mode === "house" ? findDesign(designId) : null;
+    const designExtra = design ? designPriceFor(design) : 0;
+
+    const extras = stampExtra + designExtra;
+    const estimated = product.basePrice + extras;
+
+    if (placementLabel) {
+      const locLabel = STAMP_LOCATIONS.find((l) => l.id === enforcedStampLocation)?.label || enforcedStampLocation;
+      const sizeLabel = STAMP_SIZES.find((s) => s.id === enforcedStampSize)?.label || enforcedStampSize;
+      const designLabel = design ? design.name : mode === "upload" ? "Diseño subido" : "Diseño";
+      placementLabel.textContent = `${designLabel} • ${sizeLabel} en ${locLabel}`;
+    }
+    if (placementPriceEl) placementPriceEl.textContent = formatMoney(extras);
+    if (estimatedTotalEl) estimatedTotalEl.textContent = formatMoney(estimated);
+    if (depositHint) {
+      depositHint.textContent = `Seña estimada: ${formatMoney(
+        Math.ceil(estimated * CONFIG.depositPercent),
+      )} (${(CONFIG.depositPercent * 100).toFixed(0)}%).`;
+    }
+  }
+
+  if (materialSelect) {
+    materialSelect.addEventListener("change", () => {
+      refreshSizeOptions();
+      refreshPricing();
+    });
+  }
+  if (stampSizeSelect) stampSizeSelect.addEventListener("change", refreshPricing);
+  if (stampLocationSelect) stampLocationSelect.addEventListener("change", refreshPricing);
+  if (styleSelect) styleSelect.addEventListener("change", refreshDesignMode);
+  if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
+
+  if (designCarousel) {
+    designCarousel.querySelectorAll("[data-design]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-design") || "";
+        if (id) setSelectedDesign(id);
+      });
+    });
+  }
+
+  refreshSizeOptions();
+  refreshDesignMode();
   refreshPricing();
-  refreshCustomizationMode();
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -768,15 +1115,25 @@ function attachProductHandlers(productId) {
       }
 
       const fd = new FormData(form);
-      const size = String(fd.get("size") || "");
-      const color = String(fd.get("color") || "");
-      const placement = String(fd.get("placement") || "");
-      const style = String(fd.get("style") || "");
-      const text = String(fd.get("text") || "").trim();
+      const material = String(fd.get("material") || "").trim();
+      const size = String(fd.get("size") || "").trim();
+      const color = String(fd.get("color") || "").trim();
+      const stampSize = String(fd.get("stampSize") || "chico").trim();
+      const stampLocation = String(fd.get("stampLocation") || "delantera").trim();
+      const style = String(fd.get("style") || "house").trim();
+      const designId = String(fd.get("designId") || "").trim();
       const notes = String(fd.get("notes") || "").trim();
       const file = fd.get("file");
 
-      const extras = placementPrice(placement);
+      if (!isHat && !material) {
+        alert("Elegí el material.");
+        return;
+      }
+
+      const enforcedStampSize = isHat ? "chico" : stampSize;
+      const enforcedStampLocation = isHat ? "delantera" : stampLocation;
+      const enforcedSize = isHat ? "Único" : size;
+      const stampExtra = stampPriceFor(product, enforcedStampSize);
 
       if (style === "upload") {
         if (!(file instanceof File) || !file.name) {
@@ -788,8 +1145,10 @@ function attachProductHandlers(productId) {
 
         const uploaded = await uploadDesignToCloudinary(file);
         const customization = {
-          type: "upload",
-          placement,
+          designMode: "upload",
+          material: isHat ? "" : material,
+          stampSize: enforcedStampSize,
+          stampLocation: enforcedStampLocation,
           fileName: uploaded.fileName || file.name,
           fileUrl: uploaded.url,
           filePublicId: uploaded.publicId,
@@ -801,11 +1160,11 @@ function attachProductHandlers(productId) {
           id: makeId("item"),
           productId: product.id,
           productName: product.name,
-          variant: { size, color },
+          variant: { size: enforcedSize, color },
           customization,
           quantity: 1,
           unitPrice: product.basePrice,
-          extrasPrice: extras,
+          extrasPrice: stampExtra,
           createdAt: Date.now(),
         });
         setCart(cart);
@@ -813,28 +1172,34 @@ function attachProductHandlers(productId) {
         return;
       }
 
-      const customization = {
-        type: "text",
-        placement,
-        text,
-        notes,
-      };
-
-      if (customization.text.length === 0) {
-        alert("Escribí el texto para la estampa.");
+      const design = findDesign(designId);
+      if (!design) {
+        alert("Elegí un diseño de la casa.");
         return;
       }
+
+      const designExtra = designPriceFor(design);
+      const customization = {
+        designMode: "house",
+        material: isHat ? "" : material,
+        stampSize: enforcedStampSize,
+        stampLocation: enforcedStampLocation,
+        designId: design.id,
+        designName: design.name,
+        designPrice: designExtra,
+        notes,
+      };
 
       const cart = getCart();
       cart.push({
         id: makeId("item"),
         productId: product.id,
         productName: product.name,
-        variant: { size, color },
+        variant: { size: enforcedSize, color },
         customization,
         quantity: 1,
         unitPrice: product.basePrice,
-        extrasPrice: extras,
+        extrasPrice: stampExtra + designExtra,
         createdAt: Date.now(),
       });
       setCart(cart);
@@ -867,15 +1232,27 @@ function renderCart() {
 
   const lines = cart
     .map((item) => {
-      const customLabel =
-        item.customization?.type === "upload"
-          ? item.customization?.fileUrl
+      const stampSize = String(item.customization?.stampSize || "");
+      const stampLocation = String(item.customization?.stampLocation || "");
+      const sizeLabel = STAMP_SIZES.find((s) => s.id === stampSize)?.label || stampSize;
+      const locLabel = STAMP_LOCATIONS.find((l) => l.id === stampLocation)?.label || stampLocation;
+
+      const designLabel =
+        item.customization?.designMode === "house"
+          ? `Diseño: ${escapeHtml(item.customization?.designName || "Diseño")}`
+          : item.customization?.fileUrl
             ? `Diseño: <a href="${escapeHtml(item.customization.fileUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.customization.fileName || "archivo")}</a>`
-            : `Diseño: ${escapeHtml(item.customization.fileName || "archivo")}`
-          : `Texto: “${escapeHtml(item.customization?.text || "")}”`;
+            : item.customization?.fileName
+              ? `Diseño: ${escapeHtml(item.customization.fileName)}`
+              : "Diseño: —";
+
+      const materialLabel = item.customization?.material ? ` • ${escapeHtml(item.customization.material)}` : "";
+      const stampLabel = sizeLabel && locLabel ? ` • ${escapeHtml(sizeLabel)} en ${escapeHtml(locLabel)}` : "";
+
       const subLabel = `${escapeHtml(item.variant?.size || "")} • ${escapeHtml(
         item.variant?.color || "",
-      )} • ${escapeHtml(item.customization?.placement || "")}`;
+      )}${materialLabel}${stampLabel}`;
+      const customLabel = designLabel;
       return `
         <div class="line">
           <div style="min-width:0">
@@ -1174,24 +1551,26 @@ function attachCheckoutHandlers() {
 function formatCartItemForMessage(item) {
   const qty = Number(item?.quantity) || 1;
   const name = String(item?.productName || item?.productId || "Producto");
-  const size = item?.variant?.size ? `Talle: ${item.variant.size}` : "";
-  const color = item?.variant?.color ? `Color: ${item.variant.color}` : "";
-  const placement = item?.customization?.placement ? `Estampa: ${item.customization.placement}` : "";
 
-  let custom = "";
-  if (item?.customization?.type === "upload") {
-    const fileName = String(item.customization.fileName || "archivo");
-    const fileUrl = String(item.customization.fileUrl || "");
-    custom = fileUrl ? `Diseño (link): ${fileUrl}` : `Diseño: ${fileName} (lo adjunto en este chat)`;
-  } else {
-    const text = String(item?.customization?.text || "").trim();
-    custom = text ? `Texto: "${text}"` : "";
-  }
+  const designName =
+    item?.customization?.designMode === "house"
+      ? String(item.customization.designName || "")
+      : String(item?.customization?.fileUrl || item?.customization?.fileName || "");
 
-  const notes = item?.customization?.notes ? `Notas: ${item.customization.notes}` : "";
-  const details = [size, color, placement, custom, notes].filter(Boolean).join(" | ");
+  const material = String(item?.customization?.material || "-");
+  const talle = String(item?.variant?.size || "-");
 
-  return `- ${qty}x ${name}${details ? ` (${details})` : ""}`;
+  const stampSize = String(item?.customization?.stampSize || "-");
+  const stampLocation = String(item?.customization?.stampLocation || "-");
+  const stampSizeLabel = STAMP_SIZES.find((s) => s.id === stampSize)?.label || stampSize;
+  const stampLocLabel = STAMP_LOCATIONS.find((l) => l.id === stampLocation)?.label || stampLocation;
+
+  const color = item?.variant?.color ? ` | Color: ${item.variant.color}` : "";
+  const notes = item?.customization?.notes ? ` | Notas: ${item.customization.notes}` : "";
+
+  const core = `Diseño: ${designName || "-"} | Material: ${material} | Talle: ${talle} | Estampa: ${stampSizeLabel} en ${stampLocLabel}`;
+
+  return `- ${qty}x ${name} (${core}${color}${notes})`;
 }
 
 function buildPaymentMessage(order) {
