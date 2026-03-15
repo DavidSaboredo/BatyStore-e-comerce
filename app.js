@@ -21,7 +21,7 @@ const CONFIG = {
   depositPercent: 0.3,
   depositHoursLimit: 48,
   whatsappNumber: "3442409755",
-  adminKey: "batystore-admin",
+  adminKey: "batygstore19931",
   bank: {
     alias: "BATYSTORE.ALIAS",
     cvuCbu: "0000000000000000000000",
