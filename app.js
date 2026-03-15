@@ -33,8 +33,8 @@ const CONFIG = {
     deliveryFlatRate: 6000,
   },
   cloudinary: {
-    cloudName: "",
-    uploadPreset: "",
+    cloudName: "dwael1b2u",
+    uploadPreset: "batystore",
     folder: "batystore",
   },
 };
@@ -386,10 +386,10 @@ function render() {
 }
 
 function renderConfig() {
-  const cfg = getSettings()?.cloudinary || {};
+  const cfg = getCloudinaryConfig();
   const cloudName = typeof cfg.cloudName === "string" ? cfg.cloudName : "";
   const uploadPreset = typeof cfg.uploadPreset === "string" ? cfg.uploadPreset : "";
-  const folder = typeof cfg.folder === "string" ? cfg.folder : "batystore";
+  const folder = typeof cfg.folder === "string" ? cfg.folder : "";
 
   return `
     <section class="panel">
@@ -460,10 +460,32 @@ function attachConfigHandlers() {
     const folder = String(fd.get("folder") || "").trim();
 
     const next = { ...getSettings() };
-    next.cloudinary = { cloudName, uploadPreset, folder };
+    const current = next.cloudinary && typeof next.cloudinary === "object" ? { ...next.cloudinary } : {};
+    if (cloudName) current.cloudName = cloudName;
+    else delete current.cloudName;
+    if (uploadPreset) current.uploadPreset = uploadPreset;
+    else delete current.uploadPreset;
+    if (typeof folder === "string") current.folder = folder;
+    next.cloudinary = current;
     setSettings(next);
     navigate("#/");
   });
+}
+
+function getCloudinaryConfig() {
+  const base = CONFIG.cloudinary && typeof CONFIG.cloudinary === "object" ? CONFIG.cloudinary : {};
+  const saved = getSettings()?.cloudinary;
+  const cfg = { ...base };
+
+  if (saved && typeof saved === "object") {
+    const cloudName = typeof saved.cloudName === "string" ? saved.cloudName.trim() : "";
+    const uploadPreset = typeof saved.uploadPreset === "string" ? saved.uploadPreset.trim() : "";
+    if (cloudName) cfg.cloudName = cloudName;
+    if (uploadPreset) cfg.uploadPreset = uploadPreset;
+    if (typeof saved.folder === "string") cfg.folder = saved.folder.trim();
+  }
+
+  return cfg;
 }
 
 function renderCatalog() {
@@ -656,9 +678,7 @@ function renderProduct(productId) {
 }
 
 async function uploadDesignToCloudinary(file) {
-  const saved = getSettings()?.cloudinary;
-  const cfg =
-    saved && typeof saved === "object" ? { ...CONFIG.cloudinary, ...saved } : CONFIG.cloudinary || {};
+  const cfg = getCloudinaryConfig();
   const cloudName = String(cfg.cloudName || "").trim();
   const uploadPreset = String(cfg.uploadPreset || "").trim();
   const folder = String(cfg.folder || "").trim();
