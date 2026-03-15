@@ -402,8 +402,8 @@ function render() {
   if (!root) return;
 
   if (parts.length === 0) {
-    root.innerHTML = renderCatalog();
-    attachCatalogHandlers();
+    root.innerHTML = renderCatalog(query);
+    attachCatalogHandlers(query);
     setupThumbVideos(root);
     return;
   }
@@ -462,12 +462,6 @@ function render() {
   }
 
   if (parts[0] === "admin") {
-    const key = query.get("key") || "";
-    if (key !== getAdminKey()) {
-      root.innerHTML = renderNotFound();
-      setupThumbVideos(root);
-      return;
-    }
     root.innerHTML = renderAdmin(query);
     attachAdminHandlers(query);
     return;
@@ -591,15 +585,21 @@ function renderAdmin(query) {
   if (key !== getAdminKey()) {
     return `
       <section class="panel">
-        <h1 class="panel-title">Admin</h1>
-        <p class="panel-subtitle">Acceso restringido.</p>
-        <div class="notice">
-          <div class="notice-title">Link de acceso</div>
-          <p class="notice-text"><span class="mono">#/admin?key=...</span></p>
-        </div>
-        <div class="row">
-          <button class="btn btn-primary" id="goCatalog">Ir al catálogo</button>
-        </div>
+        <h1 class="panel-title">Acceso</h1>
+        <p class="panel-subtitle">Ingresá la clave para administrar.</p>
+        <div class="divider"></div>
+        <form id="adminLoginForm" class="form" autocomplete="off">
+          <div class="field full">
+            <label for="adminKey">Clave</label>
+            <input id="adminKey" name="adminKey" placeholder="Clave de admin" />
+          </div>
+          <div class="field full">
+            <div class="row">
+              <button class="btn" type="button" id="goCatalog">Volver</button>
+              <button class="btn btn-primary" type="submit">Entrar</button>
+            </div>
+          </div>
+        </form>
       </section>
     `;
   }
@@ -684,7 +684,19 @@ function attachAdminHandlers(query) {
   if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
 
   const key = query?.get("key") || "";
-  if (key !== getAdminKey()) return;
+  if (key !== getAdminKey()) {
+    const loginForm = document.getElementById("adminLoginForm");
+    if (loginForm) {
+      loginForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const fd = new FormData(loginForm);
+        const entered = String(fd.get("adminKey") || "").trim();
+        if (!entered) return;
+        navigate(`#/admin?key=${encodeURIComponent(entered)}`);
+      });
+    }
+    return;
+  }
 
   const designsJsonEl = document.getElementById("designsJson");
   const newDesignFile = document.getElementById("newDesignFile");
@@ -822,7 +834,7 @@ function attachAdminHandlers(query) {
   });
 }
 
-function renderCatalog() {
+function renderCatalog(query) {
   const itemsHtml = PRODUCTS.map((p) => {
     return `
       <article class="card">
@@ -843,6 +855,7 @@ function renderCatalog() {
     `;
   }).join("");
 
+  const isOwner = (query?.get("key") || "") === getAdminKey();
   const designsWithImages = getDesigns().filter((d) => d && typeof d.imageUrl === "string" && d.imageUrl.trim());
   const designsHtml = designsWithImages
     .map((d) => {
@@ -885,19 +898,22 @@ function renderCatalog() {
         </div>
       </section>
 
-      ${
-        designsWithImages.length > 0
-          ? `
       <section class="panel">
         <div class="row">
           <h2 class="panel-title" style="margin:0">Diseños de la casa</h2>
+          ${
+            isOwner
+              ? `<a class="btn btn-outline" href="#/admin?key=${escapeHtml(encodeURIComponent(getAdminKey()))}">Admin</a>`
+              : ""
+          }
         </div>
         <p class="panel-subtitle">Elegí un diseño y pasá directo al pedido.</p>
-        <div class="design-carousel" id="homeDesignCarousel">${designsHtml}</div>
+        ${
+          designsWithImages.length > 0
+            ? `<div class="design-carousel" id="homeDesignCarousel">${designsHtml}</div>`
+            : `<div class="notice"><div class="notice-title">Próximamente</div><p class="notice-text">Todavía no hay diseños publicados.</p></div>`
+        }
       </section>
-      `
-          : ""
-      }
 
       <section class="grid">
         ${itemsHtml}
