@@ -137,6 +137,7 @@ const state = {
   cart: [],
   orders: [],
   settings: {},
+  published: { designs: null, pricing: null },
 };
 
 function readCartFromStorage() {
@@ -209,6 +210,20 @@ function getSettings() {
   return state.settings;
 }
 
+function setPublishedStore(next) {
+  const designs = Array.isArray(next?.designs) ? next.designs : null;
+  const pricing = next?.pricing && typeof next.pricing === "object" ? next.pricing : null;
+  state.published = { designs, pricing };
+}
+
+function getPublishedDesigns() {
+  return Array.isArray(state.published?.designs) ? state.published.designs : null;
+}
+
+function getPublishedPricing() {
+  return state.published?.pricing && typeof state.published.pricing === "object" ? state.published.pricing : null;
+}
+
 function makeId(prefix) {
   const part = Math.random().toString(16).slice(2, 10);
   return `${prefix}_${Date.now().toString(16)}_${part}`;
@@ -257,6 +272,8 @@ function placementPrice(placement) {
 }
 
 function getDesigns() {
+  const published = getPublishedDesigns();
+  if (Array.isArray(published) && published.length > 0) return published;
   const saved = getSettings()?.designs;
   if (Array.isArray(saved) && saved.length > 0) return saved;
   return DEFAULT_DESIGNS;
@@ -267,7 +284,8 @@ function findDesign(designId) {
 }
 
 function getPricing() {
-  const saved = getSettings()?.pricing;
+  const published = getPublishedPricing();
+  const saved = published || getSettings()?.pricing;
   const base = {
     stampSizes: { chico: 4500, mediano: 6900, grande: 7900 },
     hatStamp: 4900,
@@ -648,6 +666,14 @@ function renderAdmin(query) {
           </div>
         </div>
 
+        <div class="field full">
+          <label>Eliminar diseño</label>
+          <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
+            <input id="deleteDesignId" placeholder="id a eliminar" />
+            <button class="btn btn-danger" type="button" id="deleteDesignBtn">Eliminar</button>
+          </div>
+        </div>
+
         <div class="divider"></div>
 
         <div class="field">
@@ -673,6 +699,14 @@ function renderAdmin(query) {
             <button class="btn btn-outline" type="button" id="adminReset">Restaurar</button>
             <button class="btn btn-primary" type="submit">Guardar</button>
           </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="notice">
+          <div class="notice-title">Publicación</div>
+          <p class="notice-text">
+            Para que lo vean todos los clientes en Vercel, la app publica en /api/store.
+          </p>
         </div>
       </form>
     </section>
@@ -702,6 +736,8 @@ function attachAdminHandlers(query) {
   const newDesignFile = document.getElementById("newDesignFile");
   const newDesignImageUrl = document.getElementById("newDesignImageUrl");
   const addDesignToJson = document.getElementById("addDesignToJson");
+  const deleteDesignBtn = document.getElementById("deleteDesignBtn");
+  const deleteDesignId = document.getElementById("deleteDesignId");
 
   if (newDesignFile instanceof HTMLInputElement) {
     newDesignFile.addEventListener("change", async () => {
@@ -770,6 +806,27 @@ function attachAdminHandlers(query) {
     });
   }
 
+  if (deleteDesignBtn) {
+    deleteDesignBtn.addEventListener("click", () => {
+      if (!(designsJsonEl instanceof HTMLTextAreaElement)) return;
+      const id = String(deleteDesignId?.value || "").trim();
+      if (!id) return;
+
+      let list = [];
+      try {
+        const raw = designsJsonEl.value.trim();
+        list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+      } catch {
+        list = [];
+      }
+
+      const next = list.filter((d) => String(d?.id || "") !== id);
+      designsJsonEl.value = JSON.stringify(next, null, 2);
+      if (deleteDesignId && "value" in deleteDesignId) deleteDesignId.value = "";
+    });
+  }
+
   const form = document.getElementById("adminForm");
   const backBtn = document.getElementById("adminBack");
   const resetBtn = document.getElementById("adminReset");
@@ -787,7 +844,7 @@ function attachAdminHandlers(query) {
   }
 
   if (!form) return;
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
 
@@ -830,6 +887,18 @@ function attachAdminHandlers(query) {
       hatStamp: priceHat,
     };
     setSettings(next);
+
+    try {
+      await fetch("/api/store", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "x-admin-key": key,
+        },
+        body: JSON.stringify({ designs, pricing: next.pricing }),
+      });
+    } catch {}
+
     navigate("#/");
   });
 }
@@ -2109,9 +2178,21 @@ function attachGlobalNotFoundHandler() {
   });
 }
 
+async function loadPublishedStore() {
+  try {
+    const res = await fetch("/api/store", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => null);
+    if (!data || typeof data !== "object") return;
+    setPublishedStore(data);
+  } catch {}
+}
+
 window.addEventListener("hashchange", render);
 window.addEventListener("DOMContentLoaded", () => {
   loadState();
   attachGlobalNotFoundHandler();
-  render();
+  loadPublishedStore().finally(() => {
+    render();
+  });
 });
