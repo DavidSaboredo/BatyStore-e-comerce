@@ -278,7 +278,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .design-card.is-selected{border-color:rgba(242,161,12,.75);background:rgba(242,161,12,.08)}
 .design-card-img{
   width:100%;
-  height:190px;
+  height:250px;
   object-fit:cover;
   border-radius:12px;
   display:block;
@@ -358,7 +358,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 @media (max-width:640px){
   .design-carousel{padding:10px 10px;scroll-padding-left:10px;scroll-padding-right:10px}
   .design-card{min-width:92vw;max-width:92vw}
-  .design-card-img{height:230px}
+  .design-card-img{height:310px}
   .admin-toolbar{flex-direction:column}
   .admin-design-card{align-items:flex-start;flex-wrap:wrap}
   .admin-design-actions{width:100%;justify-content:flex-end}
