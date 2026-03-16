@@ -358,13 +358,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 @media (max-width:640px){
   .design-carousel{padding:10px 10px;scroll-padding-left:10px;scroll-padding-right:10px}
   .design-card{min-width:92vw;max-width:92vw}
-  .design-card-img{height:310px}
+  .design-card-img{height:360px;object-fit:contain;background:rgba(11,11,14,.55)}
   .admin-toolbar{flex-direction:column}
   .admin-design-card{align-items:flex-start;flex-wrap:wrap}
   .admin-design-actions{width:100%;justify-content:flex-end}
   .admin-design-actions .btn{flex:1 1 auto}
   .field{grid-column:span 12}
   .carousel-btn{display:none}
+  .carousel-shell::before,.carousel-shell::after{display:none}
 }
 
 .btn{
