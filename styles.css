@@ -331,6 +331,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
  .admin-design-name{font-weight:900;line-height:1.15}
  .admin-design-sub{color:var(--muted);font-size:12px;margin-top:4px}
  .admin-design-price{color:var(--primary);font-weight:900;margin-top:6px}
+ .admin-design-actions{display:flex;gap:8px;align-items:center;flex:0 0 auto}
+ .admin-editbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
  .admin-file-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
  .admin-file-row > input[type="file"]{max-width:240px}
  .admin-file-row > input#newDesignImageUrl{flex:1 1 240px;min-width:220px}
@@ -340,7 +342,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   .design-card{min-width:86vw;max-width:86vw}
   .design-card-img{height:200px}
   .admin-toolbar{flex-direction:column}
-  .admin-design-card{align-items:flex-start}
+  .admin-design-card{align-items:flex-start;flex-wrap:wrap}
+  .admin-design-actions{width:100%;justify-content:flex-end}
+  .admin-design-actions .btn{flex:1 1 auto}
+  .field{grid-column:span 12}
   .carousel-btn{display:none}
 }
 

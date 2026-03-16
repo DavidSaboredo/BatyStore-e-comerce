@@ -710,16 +710,25 @@ function renderAdmin(query) {
             const productId = typeof d?.productId === "string" ? d.productId : "";
             const productName = findProduct(productId)?.name || productId || "—";
             const sizes = Array.isArray(d?.allowedSizes) ? d.allowedSizes.join(", ") : "";
+            const fixedSize = typeof d?.fixedSize === "string" ? d.fixedSize.trim() : "";
+            const fixedColor = typeof d?.fixedColor === "string" ? d.fixedColor.trim() : "";
+            const materialId = typeof d?.materialId === "string" ? d.materialId.trim() : "";
+            const materialLabel = materialId ? MATERIALS.find((m) => m.id === materialId)?.label || materialId : "";
             const price = designPriceFor(d);
             return `
               <div class="admin-design-card" data-design-id="${escapeHtml(d.id)}">
                 ${media}
                 <div class="admin-design-meta">
                   <div class="admin-design-name">${escapeHtml(d.name)}</div>
-                  <div class="admin-design-sub">${escapeHtml(productName)}${sizes ? ` • ${escapeHtml(sizes)}` : ""}</div>
+                  <div class="admin-design-sub">${escapeHtml(productName)}${
+                    fixedSize ? ` • ${escapeHtml(fixedSize)}` : sizes ? ` • ${escapeHtml(sizes)}` : ""
+                  }${fixedColor ? ` • ${escapeHtml(fixedColor)}` : ""}${materialLabel ? ` • ${escapeHtml(materialLabel)}` : ""}</div>
                   <div class="admin-design-price">${price ? `+${formatMoney(price)}` : ""}</div>
                 </div>
-                <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(d.id)}">Quitar</button>
+                <div class="admin-design-actions">
+                  <button class="btn btn-outline" type="button" data-edit-design="${escapeHtml(d.id)}">Editar</button>
+                  <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(d.id)}">Quitar</button>
+                </div>
               </div>
             `;
           })
@@ -756,6 +765,14 @@ function renderAdmin(query) {
         </div>
 
         <div class="divider"></div>
+
+        <div class="field full" id="designEditBar" style="display:none">
+          <input type="hidden" id="editingDesignId" value="" />
+          <div class="admin-editbar">
+            <div class="pill" id="editingDesignLabel">Editando</div>
+            <button class="btn btn-outline" type="button" id="cancelEditDesign">Cancelar edición</button>
+          </div>
+        </div>
 
         <div class="field">
           <label for="newDesignName">Nombre</label>
@@ -927,6 +944,10 @@ function attachAdminHandlers(query) {
   const newDesignImageUrl = document.getElementById("newDesignImageUrl");
   const addDesignToJson = document.getElementById("addDesignToJson");
   const adminDesignList = document.getElementById("adminDesignList");
+  const designEditBar = document.getElementById("designEditBar");
+  const editingDesignId = document.getElementById("editingDesignId");
+  const editingDesignLabel = document.getElementById("editingDesignLabel");
+  const cancelEditDesign = document.getElementById("cancelEditDesign");
   const publishStatus = document.getElementById("publishStatus");
   const testApiBtn = document.getElementById("testApiBtn");
   const newDesignProduct = document.getElementById("newDesignProduct");
@@ -987,13 +1008,97 @@ function attachAdminHandlers(query) {
               }${fixedColor ? ` • ${escapeHtml(fixedColor)}` : ""}${materialLabel ? ` • ${escapeHtml(materialLabel)}` : ""}</div>
               <div class="admin-design-price">${price ? `+${formatMoney(price)}` : ""}</div>
             </div>
-            <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(id)}">Quitar</button>
+            <div class="admin-design-actions">
+              <button class="btn btn-outline" type="button" data-edit-design="${escapeHtml(id)}">Editar</button>
+              <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(id)}">Quitar</button>
+            </div>
           </div>
         `;
       })
       .join("");
     adminDesignList.innerHTML = html;
   }
+
+  function clearDesignForm() {
+    const nameEl = document.getElementById("newDesignName");
+    const priceEl = document.getElementById("newDesignPrice");
+    const sizesEl = document.getElementById("newDesignSizes");
+    const imgEl = document.getElementById("newDesignImageUrl");
+    if (nameEl && "value" in nameEl) nameEl.value = "";
+    if (priceEl && "value" in priceEl) priceEl.value = "";
+    if (sizesEl && "value" in sizesEl) sizesEl.value = "";
+    if (imgEl && "value" in imgEl) imgEl.value = "";
+    if (newDesignFixedSize instanceof HTMLSelectElement) newDesignFixedSize.value = "";
+    if (newDesignMaterial instanceof HTMLSelectElement) newDesignMaterial.value = MATERIALS[0]?.id || "peinado";
+    if (newDesignProduct instanceof HTMLSelectElement) newDesignProduct.value = PRODUCTS[0]?.id || "remera-basica";
+    refreshNewDesignVariantFields();
+    if (addDesignToJson instanceof HTMLElement) addDesignToJson.textContent = "Agregar";
+  }
+
+  function setEditing(id) {
+    if (!(editingDesignId instanceof HTMLInputElement)) return;
+    const list = parseDesignsFromTextarea();
+    const design = list.find((d) => String(d?.id || "") === id);
+    if (!design) return;
+
+    editingDesignId.value = id;
+    if (designEditBar instanceof HTMLElement) designEditBar.style.display = "";
+    if (editingDesignLabel instanceof HTMLElement) {
+      editingDesignLabel.textContent = `Editando: ${id}`;
+    }
+    if (addDesignToJson instanceof HTMLElement) addDesignToJson.textContent = "Actualizar";
+
+    const nameEl = document.getElementById("newDesignName");
+    const priceEl = document.getElementById("newDesignPrice");
+    const sizesEl = document.getElementById("newDesignSizes");
+    const imgEl = document.getElementById("newDesignImageUrl");
+
+    const name = String(design?.name || "").trim();
+    const price = Number(design?.price) || 0;
+    const productId = String(design?.productId || "remera-basica").trim();
+    const fixedColor = String(design?.fixedColor || "").trim();
+    const fixedSize = String(design?.fixedSize || "").trim();
+    const materialId = String(design?.materialId || "").trim();
+    const imageUrl = String(design?.imageUrl || "").trim();
+    const allowedSizes = Array.isArray(design?.allowedSizes) ? design.allowedSizes.map((s) => String(s)) : [];
+
+    if (newDesignProduct instanceof HTMLSelectElement) {
+      newDesignProduct.value = productId || PRODUCTS[0]?.id || "remera-basica";
+    }
+    refreshNewDesignVariantFields();
+
+    if (nameEl && "value" in nameEl) nameEl.value = name;
+    if (priceEl && "value" in priceEl) priceEl.value = String(price || "");
+    if (sizesEl && "value" in sizesEl) sizesEl.value = allowedSizes.length ? allowedSizes.join(",") : "";
+    if (imgEl && "value" in imgEl) imgEl.value = imageUrl;
+
+    if (newDesignColor instanceof HTMLSelectElement) {
+      if (fixedColor) newDesignColor.value = fixedColor;
+    }
+    if (newDesignFixedSize instanceof HTMLSelectElement) {
+      if (fixedSize) newDesignFixedSize.value = fixedSize;
+      else newDesignFixedSize.value = "";
+    }
+    if (newDesignMaterial instanceof HTMLSelectElement) {
+      if (materialId) newDesignMaterial.value = materialId;
+      else newDesignMaterial.value = MATERIALS[0]?.id || "peinado";
+    }
+
+    const focusTarget = document.getElementById("newDesignName");
+    if (focusTarget instanceof HTMLElement) {
+      focusTarget.scrollIntoView({ behavior: "smooth", block: "center" });
+      if ("focus" in focusTarget) focusTarget.focus();
+    }
+  }
+
+  function clearEditing() {
+    if (editingDesignId instanceof HTMLInputElement) editingDesignId.value = "";
+    if (designEditBar instanceof HTMLElement) designEditBar.style.display = "none";
+    if (editingDesignLabel instanceof HTMLElement) editingDesignLabel.textContent = "Editando";
+    clearDesignForm();
+  }
+
+  if (cancelEditDesign) cancelEditDesign.addEventListener("click", clearEditing);
 
   function refreshNewDesignVariantFields() {
     const productId = String(newDesignProduct?.value || "").trim() || PRODUCTS[0]?.id || "";
@@ -1109,32 +1214,50 @@ function attachAdminHandlers(query) {
         : [];
 
       const list = parseDesignsFromTextarea();
-      let id = baseId || `design-${Math.random().toString(16).slice(2, 8)}`;
-      if (list.some((d) => String(d?.id || "") === id)) {
-        id = `${id}-${Math.random().toString(16).slice(2, 6)}`;
-      }
+      const editingId =
+        editingDesignId instanceof HTMLInputElement ? String(editingDesignId.value || "").trim() : "";
 
-      list.push({
-        id,
-        name,
-        price,
-        productId: productId || "remera-basica",
-        allowedSizes,
-        imageUrl,
-        fixedColor,
-        fixedSize,
-        materialId,
-      });
+      if (editingId) {
+        const idx = list.findIndex((d) => String(d?.id || "") === editingId);
+        if (idx >= 0) {
+          const prev = list[idx] && typeof list[idx] === "object" ? list[idx] : {};
+          const prevImage = typeof prev?.imageUrl === "string" ? prev.imageUrl : "";
+          const nextImageUrl = imageUrl || prevImage || "";
+          list[idx] = {
+            ...prev,
+            id: editingId,
+            name,
+            price,
+            productId: productId || "remera-basica",
+            allowedSizes,
+            imageUrl: nextImageUrl,
+            fixedColor,
+            fixedSize,
+            materialId,
+          };
+        }
+      } else {
+        let id = baseId || `design-${Math.random().toString(16).slice(2, 8)}`;
+        if (list.some((d) => String(d?.id || "") === id)) {
+          id = `${id}-${Math.random().toString(16).slice(2, 6)}`;
+        }
+
+        list.push({
+          id,
+          name,
+          price,
+          productId: productId || "remera-basica",
+          allowedSizes,
+          imageUrl,
+          fixedColor,
+          fixedSize,
+          materialId,
+        });
+      }
 
       writeDesignsToTextarea(list);
       renderAdminDesignList();
-
-      const nameEl = document.getElementById("newDesignName");
-      const priceEl = document.getElementById("newDesignPrice");
-      const sizesEl = document.getElementById("newDesignSizes");
-      if (nameEl && "value" in nameEl) nameEl.value = "";
-      if (priceEl && "value" in priceEl) priceEl.value = "";
-      if (sizesEl && "value" in sizesEl) sizesEl.value = "";
+      clearEditing();
     });
   }
 
@@ -1142,14 +1265,26 @@ function attachAdminHandlers(query) {
     adminDesignList.addEventListener("click", (e) => {
       const target = e.target instanceof HTMLElement ? e.target : null;
       if (!target) return;
-      const btn = target.closest("[data-remove-design]");
-      if (!(btn instanceof HTMLElement)) return;
-      const id = btn.getAttribute("data-remove-design") || "";
-      if (!id) return;
-      const list = parseDesignsFromTextarea();
-      const next = list.filter((d) => String(d?.id || "") !== id);
-      writeDesignsToTextarea(next);
-      renderAdminDesignList();
+      const editBtn = target.closest("[data-edit-design]");
+      if (editBtn instanceof HTMLElement) {
+        const id = editBtn.getAttribute("data-edit-design") || "";
+        if (!id) return;
+        setEditing(id);
+        return;
+      }
+
+      const removeBtn = target.closest("[data-remove-design]");
+      if (removeBtn instanceof HTMLElement) {
+        const id = removeBtn.getAttribute("data-remove-design") || "";
+        if (!id) return;
+        const list = parseDesignsFromTextarea();
+        const next = list.filter((d) => String(d?.id || "") !== id);
+        writeDesignsToTextarea(next);
+        renderAdminDesignList();
+        const currentEditing =
+          editingDesignId instanceof HTMLInputElement ? String(editingDesignId.value || "").trim() : "";
+        if (currentEditing && currentEditing === id) clearEditing();
+      }
     });
   }
 
