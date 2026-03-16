@@ -247,12 +247,5 @@ Guías:
 
 ## 🧾 Créditos
 
-No puedo afirmar de forma veraz que el desarrollo fue realizado “exclusivamente por mí” como único desarrollador, porque el repositorio puede tener autoría previa y la información de autoría no está garantizada desde acá.
-
-Lo que sí puedo documentar con precisión:
-
-- Desarrollo/implementación en este workspace: realizado con asistencia de IA (ChatGPT en Trae IDE).
-- Branding y autoría mostrada en el sitio: “Laruzo” (ver footer).
-
-Si querés, decime el nombre exacto que querés que figure como autor/a y lo ajusto.
+Laruzo (David Saboredo)
 
