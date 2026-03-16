@@ -722,8 +722,23 @@ function renderAdmin(query) {
           </select>
         </div>
         <div class="field">
+          <label for="newDesignColor">Color (fijo)</label>
+          <select id="newDesignColor">
+            <option value="">A elección del cliente</option>
+            ${(PRODUCTS[0]?.colors || [])
+              .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
+              .join("")}
+          </select>
+        </div>
+        <div class="field">
           <label for="newDesignSizes">Talles</label>
           <input id="newDesignSizes" placeholder="Ej: 1,2,3,4" />
+        </div>
+        <div class="field" id="newDesignFixedSizeField" style="display:none">
+          <label for="newDesignFixedSize">Talle fijo (opcional)</label>
+          <select id="newDesignFixedSize">
+            <option value="">A elección del cliente</option>
+          </select>
         </div>
 
         <div class="field full">
@@ -734,6 +749,13 @@ function renderAdmin(query) {
             <button class="btn btn-outline" type="button" id="addDesignToJson">Agregar</button>
           </div>
           <div class="hint">Se sube a Cloudinary y queda visible en el carrusel.</div>
+        </div>
+
+        <div class="field full" id="newDesignMaterialField" style="display:none">
+          <label for="newDesignMaterial">Material (solo remera)</label>
+          <select id="newDesignMaterial">
+            ${MATERIALS.map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`).join("")}
+          </select>
         </div>
 
         <div class="field full">
@@ -808,6 +830,12 @@ function attachAdminHandlers(query) {
   const adminDesignList = document.getElementById("adminDesignList");
   const publishStatus = document.getElementById("publishStatus");
   const testApiBtn = document.getElementById("testApiBtn");
+  const newDesignProduct = document.getElementById("newDesignProduct");
+  const newDesignColor = document.getElementById("newDesignColor");
+  const newDesignMaterialField = document.getElementById("newDesignMaterialField");
+  const newDesignMaterial = document.getElementById("newDesignMaterial");
+  const newDesignFixedSizeField = document.getElementById("newDesignFixedSizeField");
+  const newDesignFixedSize = document.getElementById("newDesignFixedSize");
 
   function parseDesignsFromTextarea() {
     if (!(designsJsonEl instanceof HTMLTextAreaElement)) return [];
@@ -845,13 +873,19 @@ function attachAdminHandlers(query) {
         const productId = typeof d?.productId === "string" ? d.productId.trim() : "";
         const productName = findProduct(productId)?.name || productId || "—";
         const sizes = Array.isArray(d?.allowedSizes) ? d.allowedSizes.join(", ") : "";
+        const fixedSize = typeof d?.fixedSize === "string" ? d.fixedSize.trim() : "";
+        const fixedColor = typeof d?.fixedColor === "string" ? d.fixedColor.trim() : "";
+        const materialId = typeof d?.materialId === "string" ? d.materialId.trim() : "";
+        const materialLabel = materialId ? MATERIALS.find((m) => m.id === materialId)?.label || materialId : "";
         const price = designPriceFor(d);
         return `
           <div class="admin-design-card" data-design-id="${escapeHtml(id)}">
             ${media}
             <div class="admin-design-meta">
               <div class="admin-design-name">${escapeHtml(name || id)}</div>
-              <div class="admin-design-sub">${escapeHtml(productName)}${sizes ? ` • ${escapeHtml(sizes)}` : ""}</div>
+              <div class="admin-design-sub">${escapeHtml(productName)}${
+                fixedSize ? ` • ${escapeHtml(fixedSize)}` : sizes ? ` • ${escapeHtml(sizes)}` : ""
+              }${fixedColor ? ` • ${escapeHtml(fixedColor)}` : ""}${materialLabel ? ` • ${escapeHtml(materialLabel)}` : ""}</div>
               <div class="admin-design-price">${price ? `+${formatMoney(price)}` : ""}</div>
             </div>
             <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(id)}">Quitar</button>
@@ -861,6 +895,44 @@ function attachAdminHandlers(query) {
       .join("");
     adminDesignList.innerHTML = html;
   }
+
+  function refreshNewDesignVariantFields() {
+    const productId = String(newDesignProduct?.value || "").trim() || PRODUCTS[0]?.id || "";
+    const product = findProduct(productId);
+    const colors = (product?.colors || []).map(String);
+    const sizes = (product?.sizes || []).map(String);
+    const type = String(product?.type || "");
+
+    if (newDesignColor instanceof HTMLSelectElement) {
+      const current = newDesignColor.value;
+      newDesignColor.innerHTML =
+        `<option value="">A elección del cliente</option>` +
+        colors.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+      if (colors.includes(current)) newDesignColor.value = current;
+      else newDesignColor.value = "";
+    }
+
+    if (newDesignFixedSize instanceof HTMLSelectElement) {
+      const current = newDesignFixedSize.value;
+      newDesignFixedSize.innerHTML =
+        `<option value="">A elección del cliente</option>` +
+        sizes.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+      if (sizes.includes(current)) newDesignFixedSize.value = current;
+      else newDesignFixedSize.value = "";
+    }
+
+    if (newDesignFixedSizeField) {
+      newDesignFixedSizeField.style.display = type === "Buzo" ? "" : "none";
+    }
+    if (newDesignMaterialField) {
+      newDesignMaterialField.style.display = type === "Remera" ? "" : "none";
+    }
+  }
+
+  if (newDesignProduct instanceof HTMLSelectElement) {
+    newDesignProduct.addEventListener("change", refreshNewDesignVariantFields);
+  }
+  refreshNewDesignVariantFields();
 
   renderAdminDesignList();
 
@@ -903,6 +975,9 @@ function attachAdminHandlers(query) {
       const productId = String(document.getElementById("newDesignProduct")?.value || "").trim();
       const sizesRaw = String(document.getElementById("newDesignSizes")?.value || "").trim();
       const imageUrl = String(document.getElementById("newDesignImageUrl")?.value || "").trim();
+      const fixedColor = newDesignColor instanceof HTMLSelectElement ? String(newDesignColor.value || "").trim() : "";
+      const fixedSize = newDesignFixedSize instanceof HTMLSelectElement ? String(newDesignFixedSize.value || "").trim() : "";
+      const materialId = newDesignMaterial instanceof HTMLSelectElement ? String(newDesignMaterial.value || "").trim() : "";
 
       if (!name) {
         alert("Completá el nombre del diseño.");
@@ -941,6 +1016,9 @@ function attachAdminHandlers(query) {
         productId: productId || "remera-basica",
         allowedSizes,
         imageUrl,
+        fixedColor,
+        fixedSize,
+        materialId,
       });
 
       writeDesignsToTextarea(list);
@@ -1034,7 +1112,10 @@ function attachAdminHandlers(query) {
           const allowedSizes = Array.isArray(d.allowedSizes)
             ? d.allowedSizes.filter((s) => s !== null && s !== undefined && String(s).trim().length > 0)
             : [];
-          return { id, name, price, productId, allowedSizes, imageUrl };
+          const fixedColor = typeof d.fixedColor === "string" ? d.fixedColor.trim() : "";
+          const fixedSize = typeof d.fixedSize === "string" ? d.fixedSize.trim() : "";
+          const materialId = typeof d.materialId === "string" ? d.materialId.trim() : "";
+          return { id, name, price, productId, allowedSizes, imageUrl, fixedColor, fixedSize, materialId };
         })
         .filter(Boolean);
       if (designs.length === 0) throw new Error("Cargá al menos 1 diseño");
@@ -1320,18 +1401,25 @@ function renderDesignOrder(designId) {
   const product = findProduct(productId);
   if (!product) return renderNotFound();
 
+  const fixedSize = typeof design.fixedSize === "string" ? design.fixedSize.trim() : "";
+  const fixedColor = typeof design.fixedColor === "string" ? design.fixedColor.trim() : "";
+  const materialId = typeof design.materialId === "string" ? design.materialId.trim() : "";
+  const materialLabel = materialId ? MATERIALS.find((m) => m.id === materialId)?.label || materialId : "";
+
   const allowed =
-    Array.isArray(design.allowedSizes) && design.allowedSizes.length > 0
-      ? design.allowedSizes.map((s) => String(s))
-      : (product.sizes || []).map((s) => String(s));
+    fixedSize
+      ? [fixedSize]
+      : Array.isArray(design.allowedSizes) && design.allowedSizes.length > 0
+        ? design.allowedSizes.map((s) => String(s))
+        : (product.sizes || []).map((s) => String(s));
 
   const sizeOptions = allowed
     .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
     .join("");
 
-  const colors = (product.colors || [])
-    .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
-    .join("");
+  const colors = fixedColor
+    ? `<option value="${escapeHtml(fixedColor)}">${escapeHtml(fixedColor)}</option>`
+    : (product.colors || []).map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
 
   const img = typeof design.imageUrl === "string" ? design.imageUrl.trim() : "";
   const media = img
@@ -1364,13 +1452,33 @@ function renderDesignOrder(designId) {
 
           <div class="field">
             <label for="size">Talle (según el diseñador)</label>
-            <select id="size" name="size" required>${sizeOptions}</select>
+            ${
+              fixedSize
+                ? `<input value="${escapeHtml(fixedSize)}" disabled />
+                   <input type="hidden" name="size" value="${escapeHtml(fixedSize)}" />`
+                : `<select id="size" name="size" required>${sizeOptions}</select>`
+            }
           </div>
 
           <div class="field">
             <label for="color">Color</label>
-            <select id="color" name="color" required>${colors}</select>
+            ${
+              fixedColor
+                ? `<input value="${escapeHtml(fixedColor)}" disabled />
+                   <input type="hidden" name="color" value="${escapeHtml(fixedColor)}" />`
+                : `<select id="color" name="color" required>${colors}</select>`
+            }
           </div>
+
+          ${
+            product.type === "Remera" && materialLabel
+              ? `<div class="field full">
+                   <label>Material</label>
+                   <input value="${escapeHtml(materialLabel)}" disabled />
+                   <input type="hidden" name="materialId" value="${escapeHtml(materialId)}" />
+                 </div>`
+              : ""
+          }
 
           <div class="field full">
             <label for="notes">Notas</label>
@@ -1399,6 +1507,13 @@ function renderDesignOrder(designId) {
           <div class="line-title">Diseño</div>
           <div class="mono">${extra ? `+${formatMoney(extra)}` : formatMoney(0)}</div>
         </div>
+        ${
+          materialLabel
+            ? `<div class="line"><div class="line-title">Material</div><div class="mono">${escapeHtml(
+                materialLabel,
+              )}</div></div>`
+            : ""
+        }
         <div class="line">
           <div>
             <div class="line-title">Total estimado</div>
@@ -1440,15 +1555,34 @@ function attachDesignOrderHandlers(designId) {
     const size = String(fd.get("size") || "").trim();
     const color = String(fd.get("color") || "").trim();
     const notes = String(fd.get("notes") || "").trim();
+    const materialId = String(fd.get("materialId") || "").trim();
+
+    const fixedSize = typeof design.fixedSize === "string" ? design.fixedSize.trim() : "";
+    const fixedColor = typeof design.fixedColor === "string" ? design.fixedColor.trim() : "";
+    const fixedMaterialId = typeof design.materialId === "string" ? design.materialId.trim() : "";
 
     const allowed =
-      Array.isArray(design.allowedSizes) && design.allowedSizes.length > 0
-        ? design.allowedSizes.map((s) => String(s))
-        : (product.sizes || []).map((s) => String(s));
+      fixedSize
+        ? [fixedSize]
+        : Array.isArray(design.allowedSizes) && design.allowedSizes.length > 0
+          ? design.allowedSizes.map((s) => String(s))
+          : (product.sizes || []).map((s) => String(s));
     if (!allowed.includes(size)) {
       alert("El talle seleccionado no está disponible para este diseño.");
       return;
     }
+    if (fixedColor && color !== fixedColor) {
+      alert("El color seleccionado no está disponible para este diseño.");
+      return;
+    }
+    if (fixedMaterialId && materialId !== fixedMaterialId) {
+      alert("El material seleccionado no está disponible para este diseño.");
+      return;
+    }
+
+    const materialLabel = fixedMaterialId
+      ? MATERIALS.find((m) => m.id === fixedMaterialId)?.label || fixedMaterialId
+      : "";
 
     const cart = getCart();
     cart.push({
@@ -1462,6 +1596,7 @@ function attachDesignOrderHandlers(designId) {
         designName: String(design.name || ""),
         designPrice: designPriceFor(design),
         imageUrl: typeof design.imageUrl === "string" ? design.imageUrl.trim() : "",
+        material: materialLabel,
         notes,
       },
       quantity: 1,
@@ -1860,10 +1995,12 @@ function renderCart() {
       if (kind === "house") {
         const name = escapeHtml(item.customization?.designName || "Diseño de la casa");
         const url = String(item.customization?.imageUrl || "").trim();
+        const materialRaw = String(item.customization?.material || "").trim();
+        const materialPart = materialRaw ? ` • ${escapeHtml(materialRaw)}` : "";
         customLabel = url
           ? `Diseño: <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${name}</a>`
           : `Diseño: ${name}`;
-        subLabel = `${subLabel} • Diseño de la casa`;
+        subLabel = `${subLabel} • Diseño de la casa${materialPart}`;
       } else if (kind === "upload") {
         const fileUrl = String(item.customization?.fileUrl || "").trim();
         const fileName = escapeHtml(item.customization?.fileName || "archivo");
@@ -2189,7 +2326,7 @@ function formatCartItemForMessage(item) {
     const designName = String(item?.customization?.designName || "-");
     const imageUrl = String(item?.customization?.imageUrl || "").trim();
     const img = imageUrl ? ` | Imagen: ${imageUrl}` : "";
-    return `- ${qty}x ${name} (Diseño: ${designName} | Talle: ${talle}${color}${img}${notes})`;
+    return `- ${qty}x ${name} (Diseño: ${designName} | Talle: ${talle}${color}${materialPart}${img}${notes})`;
   }
 
   const placement = String(item?.customization?.placement || "-");
