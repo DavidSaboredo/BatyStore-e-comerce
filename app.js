@@ -656,6 +656,14 @@ function renderAdmin(query) {
       <div class="divider"></div>
 
       <form id="adminForm" class="form" autocomplete="off">
+        <div class="notice" id="publishStatus">
+          <div class="notice-title">Estado</div>
+          <p class="notice-text">Listo para publicar.</p>
+        </div>
+        <div class="row" style="justify-content:flex-start">
+          <button class="btn btn-outline" type="button" id="testApiBtn">Probar conexión</button>
+        </div>
+
         <div class="field full">
           <label>Nuevo diseño (rápido)</label>
           <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
@@ -757,6 +765,8 @@ function attachAdminHandlers(query) {
   const addDesignToJson = document.getElementById("addDesignToJson");
   const deleteDesignBtn = document.getElementById("deleteDesignBtn");
   const deleteDesignId = document.getElementById("deleteDesignId");
+  const publishStatus = document.getElementById("publishStatus");
+  const testApiBtn = document.getElementById("testApiBtn");
 
   if (newDesignFile instanceof HTMLInputElement) {
     newDesignFile.addEventListener("change", async () => {
@@ -846,6 +856,32 @@ function attachAdminHandlers(query) {
     });
   }
 
+  if (testApiBtn) {
+    testApiBtn.addEventListener("click", async () => {
+      try {
+        if (publishStatus) {
+          publishStatus.querySelector(".notice-title").textContent = "Estado";
+          publishStatus.querySelector(".notice-text").textContent = "Probando conexión...";
+        }
+        const { data } = await fetchPublishedStoreStatus();
+        const kvOk = Boolean(data?.meta?.kvConfigured);
+        const updatedAt = typeof data?.updatedAt === "number" ? new Date(data.updatedAt).toLocaleString() : "—";
+        if (publishStatus) {
+          publishStatus.querySelector(".notice-title").textContent = "Estado";
+          publishStatus.querySelector(".notice-text").textContent = kvOk
+            ? `KV conectado. Última publicación: ${updatedAt}`
+            : "KV no configurado en Vercel (KV_REST_API_URL / KV_REST_API_TOKEN).";
+        }
+      } catch {
+        if (publishStatus) {
+          publishStatus.querySelector(".notice-title").textContent = "Estado";
+          publishStatus.querySelector(".notice-text").textContent =
+            "No se pudo consultar /api/store. Revisá el deploy en Vercel.";
+        }
+      }
+    });
+  }
+
   const form = document.getElementById("adminForm");
   const backBtn = document.getElementById("adminBack");
   const resetBtn = document.getElementById("adminReset");
@@ -908,6 +944,10 @@ function attachAdminHandlers(query) {
     setSettings(next);
 
     try {
+      if (publishStatus) {
+        publishStatus.querySelector(".notice-title").textContent = "Publicando";
+        publishStatus.querySelector(".notice-text").textContent = "Guardando cambios...";
+      }
       const res = await fetch("/api/store", {
         method: "POST",
         headers: {
@@ -919,11 +959,24 @@ function attachAdminHandlers(query) {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const msg = data?.error ? String(data.error) : "No se pudo publicar.";
+        if (publishStatus) {
+          publishStatus.querySelector(".notice-title").textContent = "Error";
+          publishStatus.querySelector(".notice-text").textContent = msg;
+        }
         alert(msg);
         return;
       }
       await loadPublishedStore();
+      if (publishStatus) {
+        publishStatus.querySelector(".notice-title").textContent = "Publicado";
+        publishStatus.querySelector(".notice-text").textContent = "Los clientes ya pueden verlo.";
+      }
     } catch {
+      if (publishStatus) {
+        publishStatus.querySelector(".notice-title").textContent = "Error";
+        publishStatus.querySelector(".notice-text").textContent =
+          "No se pudo publicar. Revisá Vercel KV y las variables de entorno.";
+      }
       alert("No se pudo publicar. Revisá Vercel KV y las variables de entorno.");
       return;
     }
@@ -2209,6 +2262,12 @@ async function loadPublishedStore() {
     if (!data || typeof data !== "object") return;
     setPublishedStore(data);
   } catch {}
+}
+
+async function fetchPublishedStoreStatus() {
+  const res = await fetch("/api/store", { cache: "no-store" });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, data };
 }
 
 window.addEventListener("hashchange", render);

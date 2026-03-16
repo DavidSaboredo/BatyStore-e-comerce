@@ -1,4 +1,4 @@
-const DEFAULT_ADMIN_KEY = "batystore-admin";
+const DEFAULT_ADMIN_KEY = "batygstore19931";
 const DEFAULT_STORE_KEY = "batystore:store:v1";
 
 function getEnv(name) {
@@ -64,13 +64,20 @@ async function upstashSet(key, value) {
 module.exports = async (req, res) => {
   const storeKey = getEnv("BATYSTORE_STORE_KEY") || DEFAULT_STORE_KEY;
   const adminKey = getEnv("ADMIN_KEY") || DEFAULT_ADMIN_KEY;
+  const { url, token } = getUpstashConfig();
+  const kvConfigured = Boolean(url && token);
 
   if (req.method === "GET") {
     try {
       const stored = await upstashGet(storeKey);
-      json(res, 200, stored || { designs: [], pricing: null });
+      json(res, 200, {
+        designs: Array.isArray(stored?.designs) ? stored.designs : [],
+        pricing: stored?.pricing && typeof stored.pricing === "object" ? stored.pricing : null,
+        updatedAt: typeof stored?.updatedAt === "number" ? stored.updatedAt : null,
+        meta: { kvConfigured },
+      });
     } catch {
-      json(res, 200, { designs: [], pricing: null });
+      json(res, 200, { designs: [], pricing: null, updatedAt: null, meta: { kvConfigured } });
     }
     return;
   }
@@ -101,6 +108,10 @@ module.exports = async (req, res) => {
     };
 
     try {
+      if (!kvConfigured) {
+        json(res, 500, { error: "KV not configured" });
+        return;
+      }
       await upstashSet(storeKey, clean);
       json(res, 200, { ok: true });
     } catch {
@@ -111,4 +122,3 @@ module.exports = async (req, res) => {
 
   json(res, 405, { error: "Method not allowed" });
 };
-
