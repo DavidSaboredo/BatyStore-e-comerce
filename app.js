@@ -1436,12 +1436,24 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
   carousel.style.cursor = "grab";
   carousel.style.userSelect = "none";
 
+  const reducedMotion = prefersReducedMotion();
+
   let isDown = false;
   let startX = 0;
   let startScrollLeft = 0;
   let didDrag = false;
   let dragBlockUntil = 0;
   let activePointerId = null;
+
+  let autoRaf = 0;
+  let autoEnabled = false;
+  let pausedUntil = 0;
+  let nextAutoAt = 0;
+  let isVisible = true;
+
+  function pauseAuto(ms) {
+    pausedUntil = Date.now() + ms;
+  }
 
   function updateButtons() {
     if (!prev && !next) return;
@@ -1458,6 +1470,7 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
   function scrollByPage(dir) {
     const amount = Math.max(220, Math.floor(carousel.clientWidth * 0.85));
     carousel.scrollBy({ left: dir * amount, behavior: "smooth" });
+    pauseAuto(2500);
   }
 
   if (prev) prev.addEventListener("click", () => scrollByPage(-1));
@@ -1469,6 +1482,7 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
       if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
       e.preventDefault();
       carousel.scrollLeft += e.deltaY;
+      pauseAuto(2500);
     },
     { passive: false },
   );
@@ -1487,6 +1501,7 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
     startScrollLeft = carousel.scrollLeft;
     didDrag = false;
     carousel.style.cursor = "grabbing";
+    pauseAuto(3500);
 
     window.addEventListener("pointermove", onMove, { passive: false });
     window.addEventListener("pointerup", onUp, { passive: true });
@@ -1527,6 +1542,74 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
     },
     true,
   );
+
+  function computeStep() {
+    const first = carousel.querySelector(".design-card");
+    if (!(first instanceof HTMLElement)) return Math.max(220, Math.floor(carousel.clientWidth * 0.8));
+    const rect = first.getBoundingClientRect();
+    const gapRaw = getComputedStyle(carousel).columnGap || getComputedStyle(carousel).gap || "0px";
+    const gap = Number.parseFloat(String(gapRaw)) || 0;
+    return Math.max(180, Math.round(rect.width + gap));
+  }
+
+  function tick(ts) {
+    if (!autoEnabled) {
+      autoRaf = 0;
+      return;
+    }
+    autoRaf = requestAnimationFrame(tick);
+    if (reducedMotion || document.hidden || !isVisible) return;
+    if (Date.now() < pausedUntil) return;
+
+    const max = carousel.scrollWidth - carousel.clientWidth;
+    if (max <= 2) return;
+
+    if (!nextAutoAt) nextAutoAt = ts + 2200;
+    if (ts < nextAutoAt) return;
+    nextAutoAt = ts + 2200;
+
+    const step = computeStep();
+    const atEnd = carousel.scrollLeft >= max - 2;
+    if (atEnd) {
+      carousel.scrollTo({ left: 0, behavior: "smooth" });
+      return;
+    }
+    carousel.scrollBy({ left: step, behavior: "smooth" });
+  }
+
+  function startAuto() {
+    if (autoEnabled) return;
+    autoEnabled = true;
+    nextAutoAt = 0;
+    autoRaf = requestAnimationFrame(tick);
+  }
+
+  function stopAuto() {
+    autoEnabled = false;
+    nextAutoAt = 0;
+    if (autoRaf) cancelAnimationFrame(autoRaf);
+    autoRaf = 0;
+  }
+
+  carousel.addEventListener("pointerenter", () => pauseAuto(999999));
+  carousel.addEventListener("pointerleave", () => pauseAuto(800));
+  carousel.addEventListener("focusin", () => pauseAuto(999999));
+  carousel.addEventListener("focusout", () => pauseAuto(800));
+
+  if ("IntersectionObserver" in window) {
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        isVisible = Boolean(entry && entry.isIntersecting);
+        if (!isVisible) pauseAuto(999999);
+        else pauseAuto(800);
+      },
+      { root: null, threshold: 0.2 },
+    );
+    obs.observe(carousel);
+  }
+
+  if (!reducedMotion) startAuto();
 }
 
 function renderDesignOrder(designId) {
