@@ -2777,15 +2777,21 @@ function renderHowItWorks() {
           <p class="notice-text">Remera, buzo o gorra. Elegí talle y color.</p>
         </div>
         <div class="notice">
-          <div class="notice-title">2) Personalizalo</div>
+          <div class="notice-title">2) Diseños de la casa (rápido)</div>
+          <p class="notice-text">
+            En el carrusel “Diseños de la casa” elegís un diseño ya listo, seleccionás el talle disponible y lo agregás al carrito.
+          </p>
+        </div>
+        <div class="notice">
+          <div class="notice-title">3) Personalizalo</div>
           <p class="notice-text">Podés elegir texto o subir tu diseño. La vista previa es referencial.</p>
         </div>
         <div class="notice">
-          <div class="notice-title">3) Generá el pedido</div>
+          <div class="notice-title">4) Generá el pedido</div>
           <p class="notice-text">En el checkout te mostramos el total, la seña y los datos para transferir.</p>
         </div>
         <div class="notice">
-          <div class="notice-title">4) Pagá la seña</div>
+          <div class="notice-title">5) Pagá la seña</div>
           <p class="notice-text">Con la seña confirmás y pasamos a producción.</p>
         </div>
       </div>
