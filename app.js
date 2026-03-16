@@ -1995,6 +1995,7 @@ function attachProductHandlers(productId) {
   if (materialSelect) {
     materialSelect.addEventListener("change", () => {
       refreshNumericSizes();
+      refreshPricing();
     });
   }
   if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
