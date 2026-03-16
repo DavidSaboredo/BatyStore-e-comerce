@@ -23,10 +23,7 @@ async function readBody(req) {
 }
 
 function getUpstashConfig() {
-  const url =
-    getEnv("KV_REST_API_URL") ||
-    getEnv("UPSTASH_REDIS_REST_URL") ||
-    getEnv("UPSTASH_REDIS_REST_URL");
+  const url = getEnv("KV_REST_API_URL") || getEnv("UPSTASH_REDIS_REST_URL");
   const token = getEnv("KV_REST_API_TOKEN") || getEnv("UPSTASH_REDIS_REST_TOKEN");
   return { url, token };
 }
@@ -66,6 +63,17 @@ module.exports = async (req, res) => {
   const adminKey = getEnv("ADMIN_KEY") || DEFAULT_ADMIN_KEY;
   const { url, token } = getUpstashConfig();
   const kvConfigured = Boolean(url && token);
+  const meta = {
+    kvConfigured,
+    env: {
+      hasKV_REST_API_URL: Boolean(getEnv("KV_REST_API_URL")),
+      hasKV_REST_API_TOKEN: Boolean(getEnv("KV_REST_API_TOKEN")),
+      hasUPSTASH_REDIS_REST_URL: Boolean(getEnv("UPSTASH_REDIS_REST_URL")),
+      hasUPSTASH_REDIS_REST_TOKEN: Boolean(getEnv("UPSTASH_REDIS_REST_TOKEN")),
+      hasADMIN_KEY: Boolean(getEnv("ADMIN_KEY")),
+    },
+    storeKey,
+  };
 
   if (req.method === "GET") {
     try {
@@ -74,10 +82,10 @@ module.exports = async (req, res) => {
         designs: Array.isArray(stored?.designs) ? stored.designs : [],
         pricing: stored?.pricing && typeof stored.pricing === "object" ? stored.pricing : null,
         updatedAt: typeof stored?.updatedAt === "number" ? stored.updatedAt : null,
-        meta: { kvConfigured },
+        meta,
       });
     } catch {
-      json(res, 200, { designs: [], pricing: null, updatedAt: null, meta: { kvConfigured } });
+      json(res, 200, { designs: [], pricing: null, updatedAt: null, meta });
     }
     return;
   }
