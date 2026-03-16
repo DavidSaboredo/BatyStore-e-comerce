@@ -788,6 +788,12 @@ function renderAdmin(query) {
             ${PRODUCTS.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("")}
           </select>
         </div>
+        <div class="field" id="newDesignMaterialField" style="display:none">
+          <label for="newDesignMaterial">Material (solo remera)</label>
+          <select id="newDesignMaterial">
+            ${MATERIALS.map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`).join("")}
+          </select>
+        </div>
         <div class="field">
           <label for="newDesignColor">Color (fijo)</label>
           <select id="newDesignColor">
@@ -815,13 +821,6 @@ function renderAdmin(query) {
             <button class="btn btn-outline" type="button" id="addDesignToJson">Agregar</button>
           </div>
           <div class="hint">Se sube a Cloudinary y queda visible en el carrusel.</div>
-        </div>
-
-        <div class="field full" id="newDesignMaterialField" style="display:none">
-          <label for="newDesignMaterial">Material (solo remera)</label>
-          <select id="newDesignMaterial">
-            ${MATERIALS.map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`).join("")}
-          </select>
         </div>
 
         <div class="field full">
