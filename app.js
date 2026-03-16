@@ -1774,7 +1774,9 @@ function renderDesignOrder(designId) {
 
   const img = typeof design.imageUrl === "string" ? design.imageUrl.trim() : "";
   const media = img
-    ? `<img class="design-hero-img" src="${escapeHtml(img)}" alt="${escapeHtml(design.name)}" />`
+    ? `<button class="design-preview-btn" type="button" id="designPreviewBtn" aria-label="Ver diseño en grande">
+         <img class="design-hero-img" src="${escapeHtml(img)}" alt="${escapeHtml(design.name)}" />
+       </button>`
     : `<div class="design-hero-img placeholder"></div>`;
 
   const base = productBasePriceFor(product, materialId || "peinado");
@@ -1793,6 +1795,7 @@ function renderDesignOrder(designId) {
           <div style="min-width:0">
             <h1 class="panel-title" style="margin:0">${escapeHtml(design.name)}</h1>
             <p class="panel-subtitle">Producto: ${escapeHtml(product.name)}</p>
+            ${img ? `<div class="hint">Tocá la imagen para verla en grande.</div>` : ""}
           </div>
         </div>
 
@@ -1893,6 +1896,178 @@ function attachDesignOrderHandlers(designId) {
 
   const backBtn = document.getElementById("backToCatalog");
   if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
+
+  const previewBtn = document.getElementById("designPreviewBtn");
+  if (previewBtn) {
+    previewBtn.addEventListener("click", () => {
+      const url = typeof design.imageUrl === "string" ? design.imageUrl.trim() : "";
+      if (!url) return;
+
+      const existing = document.getElementById("designPreviewModal");
+      if (existing) existing.remove();
+
+      const modal = document.createElement("div");
+      modal.id = "designPreviewModal";
+      modal.className = "design-preview-modal";
+
+      const title = String(design.name || "Diseño");
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+
+      const onKeyDown = (ev) => {
+        if (ev.key === "Escape") close();
+      };
+
+      const close = () => {
+        document.removeEventListener("keydown", onKeyDown);
+        document.body.style.overflow = prevOverflow;
+        modal.remove();
+        if (previewBtn instanceof HTMLElement) previewBtn.focus();
+      };
+
+      modal.innerHTML = `
+        <div class="design-preview-backdrop" data-close-modal></div>
+        <div class="design-preview-dialog" role="dialog" aria-modal="true" aria-label="Vista previa del diseño">
+          <div class="design-preview-topbar">
+            <div class="design-preview-title">${escapeHtml(title)}</div>
+            <div class="design-preview-tools">
+              <button class="btn btn-outline design-preview-zoomout" type="button" aria-label="Alejar">−</button>
+              <button class="btn btn-outline design-preview-zoomin" type="button" aria-label="Acercar">+</button>
+              <button class="btn btn-outline design-preview-reset" type="button" aria-label="Restablecer zoom">Reset</button>
+              <button class="btn btn-outline design-preview-close" type="button" data-close-modal>Cerrar</button>
+            </div>
+          </div>
+          <div class="design-preview-stage" aria-label="Vista previa ampliable">
+            <img class="design-preview-img" src="${escapeHtml(url)}" alt="${escapeHtml(title)}" draggable="false" />
+          </div>
+        </div>
+      `;
+
+      modal.addEventListener("click", (ev) => {
+        const t = ev.target instanceof HTMLElement ? ev.target : null;
+        if (t && t.closest("[data-close-modal]")) close();
+      });
+
+      const stage = modal.querySelector(".design-preview-stage");
+      const imgEl = modal.querySelector(".design-preview-img");
+      const zoomInBtn = modal.querySelector(".design-preview-zoomin");
+      const zoomOutBtn = modal.querySelector(".design-preview-zoomout");
+      const resetBtn = modal.querySelector(".design-preview-reset");
+
+      let scale = 1;
+      let offsetX = 0;
+      let offsetY = 0;
+      const minScale = 1;
+      const maxScale = 5;
+
+      function clamp(n, a, b) {
+        return Math.min(b, Math.max(a, n));
+      }
+
+      function applyTransform() {
+        if (!(imgEl instanceof HTMLElement)) return;
+        imgEl.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+      }
+
+      function resetView() {
+        scale = 1;
+        offsetX = 0;
+        offsetY = 0;
+        applyTransform();
+      }
+
+      function zoomAt(nextScale, cx, cy) {
+        if (!(stage instanceof HTMLElement)) return;
+        if (!(imgEl instanceof HTMLElement)) return;
+
+        const rect = stage.getBoundingClientRect();
+        const x = cx - rect.left - rect.width / 2 - offsetX;
+        const y = cy - rect.top - rect.height / 2 - offsetY;
+
+        const newScale = clamp(nextScale, minScale, maxScale);
+        const k = newScale / scale;
+        offsetX -= x * (k - 1);
+        offsetY -= y * (k - 1);
+        scale = newScale;
+        applyTransform();
+      }
+
+      if (stage instanceof HTMLElement && imgEl instanceof HTMLElement) {
+        stage.addEventListener(
+          "wheel",
+          (ev) => {
+            ev.preventDefault();
+            const delta = ev.deltaY || 0;
+            const step = delta > 0 ? 0.9 : 1.1;
+            zoomAt(scale * step, ev.clientX, ev.clientY);
+          },
+          { passive: false },
+        );
+
+        let isPanning = false;
+        let panStartX = 0;
+        let panStartY = 0;
+        let panBaseX = 0;
+        let panBaseY = 0;
+
+        stage.addEventListener("pointerdown", (ev) => {
+          if (ev.button !== 0) return;
+          isPanning = true;
+          panStartX = ev.clientX;
+          panStartY = ev.clientY;
+          panBaseX = offsetX;
+          panBaseY = offsetY;
+          stage.setPointerCapture(ev.pointerId);
+          stage.classList.add("is-panning");
+        });
+
+        stage.addEventListener("pointermove", (ev) => {
+          if (!isPanning) return;
+          const dx = ev.clientX - panStartX;
+          const dy = ev.clientY - panStartY;
+          offsetX = panBaseX + dx;
+          offsetY = panBaseY + dy;
+          applyTransform();
+        });
+
+        const endPan = (ev) => {
+          if (!isPanning) return;
+          isPanning = false;
+          stage.classList.remove("is-panning");
+          try {
+            stage.releasePointerCapture(ev.pointerId);
+          } catch {}
+        };
+
+        stage.addEventListener("pointerup", endPan);
+        stage.addEventListener("pointercancel", endPan);
+
+        stage.addEventListener("dblclick", () => resetView());
+      }
+
+      if (zoomInBtn instanceof HTMLElement) {
+        zoomInBtn.addEventListener("click", () => {
+          if (!(stage instanceof HTMLElement)) return;
+          const rect = stage.getBoundingClientRect();
+          zoomAt(scale * 1.2, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        });
+      }
+      if (zoomOutBtn instanceof HTMLElement) {
+        zoomOutBtn.addEventListener("click", () => {
+          if (!(stage instanceof HTMLElement)) return;
+          const rect = stage.getBoundingClientRect();
+          zoomAt(scale / 1.2, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        });
+      }
+      if (resetBtn instanceof HTMLElement) resetBtn.addEventListener("click", resetView);
+
+      document.addEventListener("keydown", onKeyDown);
+      document.body.appendChild(modal);
+
+      const closeBtn = modal.querySelector(".design-preview-close");
+      if (closeBtn instanceof HTMLElement) closeBtn.focus();
+    });
+  }
 
   const form = document.getElementById("designOrderForm");
   if (!form) return;
