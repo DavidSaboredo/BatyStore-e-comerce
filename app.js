@@ -1314,8 +1314,8 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
   let isDown = false;
   let startX = 0;
   let startScrollLeft = 0;
-  let lastDragAt = 0;
-  let dragDistance = 0;
+  let didDrag = false;
+  let dragBlockUntil = 0;
 
   function updateButtons() {
     if (!prev && !next) return;
@@ -1355,8 +1355,7 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
     isDown = true;
     startX = e.clientX;
     startScrollLeft = carousel.scrollLeft;
-    dragDistance = 0;
-    lastDragAt = 0;
+    didDrag = false;
     carousel.style.cursor = "grabbing";
     carousel.setPointerCapture(e.pointerId);
   });
@@ -1364,15 +1363,15 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
   carousel.addEventListener("pointermove", (e) => {
     if (!isDown) return;
     const dx = e.clientX - startX;
-    dragDistance = Math.max(dragDistance, Math.abs(dx));
+    if (Math.abs(dx) > 10) didDrag = true;
     carousel.scrollLeft = startScrollLeft - dx;
-    if (dragDistance > 6) lastDragAt = Date.now();
   });
 
   function endDrag(e) {
     if (!isDown) return;
     isDown = false;
     carousel.style.cursor = "grab";
+    if (didDrag) dragBlockUntil = Date.now() + 450;
     try {
       carousel.releasePointerCapture(e.pointerId);
     } catch {}
@@ -1384,7 +1383,7 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
   carousel.addEventListener(
     "click",
     (e) => {
-      if (dragDistance > 6 && Date.now() - lastDragAt < 400) {
+      if (Date.now() < dragBlockUntil) {
         e.preventDefault();
         e.stopPropagation();
       }
