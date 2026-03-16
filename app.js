@@ -2004,25 +2004,101 @@ function attachDesignOrderHandlers(designId) {
           { passive: false },
         );
 
+        const pointers = new Map();
         let isPanning = false;
+        let panPointerId = null;
         let panStartX = 0;
         let panStartY = 0;
         let panBaseX = 0;
         let panBaseY = 0;
 
-        stage.addEventListener("pointerdown", (ev) => {
-          if (ev.button !== 0) return;
+        let pinchActive = false;
+        let pinchStartDist = 0;
+        let pinchStartScale = 1;
+        let pinchStartOffsetX = 0;
+        let pinchStartOffsetY = 0;
+        let pinchStartMidX = 0;
+        let pinchStartMidY = 0;
+
+        function distance(a, b) {
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          return Math.hypot(dx, dy);
+        }
+
+        function midpoint(a, b) {
+          return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        }
+
+        function beginPan(ev) {
           isPanning = true;
+          panPointerId = ev.pointerId;
           panStartX = ev.clientX;
           panStartY = ev.clientY;
           panBaseX = offsetX;
           panBaseY = offsetY;
-          stage.setPointerCapture(ev.pointerId);
           stage.classList.add("is-panning");
+        }
+
+        function endPan() {
+          isPanning = false;
+          panPointerId = null;
+          stage.classList.remove("is-panning");
+        }
+
+        function beginPinch() {
+          if (pointers.size < 2) return;
+          const [a, b] = Array.from(pointers.values()).slice(0, 2);
+          pinchActive = true;
+          pinchStartDist = distance(a, b) || 1;
+          pinchStartScale = scale;
+          pinchStartOffsetX = offsetX;
+          pinchStartOffsetY = offsetY;
+          const mid = midpoint(a, b);
+          pinchStartMidX = mid.x;
+          pinchStartMidY = mid.y;
+          endPan();
+        }
+
+        function updatePinch() {
+          if (!pinchActive) return;
+          if (pointers.size < 2) return;
+          const [a, b] = Array.from(pointers.values()).slice(0, 2);
+          const dist = distance(a, b) || 1;
+          const mid = midpoint(a, b);
+          const nextScale = clamp(pinchStartScale * (dist / pinchStartDist), minScale, maxScale);
+
+          scale = pinchStartScale;
+          offsetX = pinchStartOffsetX + (mid.x - pinchStartMidX);
+          offsetY = pinchStartOffsetY + (mid.y - pinchStartMidY);
+          applyTransform();
+          zoomAt(nextScale, mid.x, mid.y);
+        }
+
+        stage.addEventListener("pointerdown", (ev) => {
+          if (ev.button !== 0) return;
+          pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+          stage.setPointerCapture(ev.pointerId);
+
+          if (pointers.size === 1) {
+            beginPan(ev);
+          } else if (pointers.size === 2) {
+            beginPinch();
+            updatePinch();
+          }
         });
 
         stage.addEventListener("pointermove", (ev) => {
+          if (!pointers.has(ev.pointerId)) return;
+          pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+
+          if (pointers.size >= 2) {
+            updatePinch();
+            return;
+          }
+
           if (!isPanning) return;
+          if (panPointerId !== ev.pointerId) return;
           const dx = ev.clientX - panStartX;
           const dy = ev.clientY - panStartY;
           offsetX = panBaseX + dx;
@@ -2030,17 +2106,29 @@ function attachDesignOrderHandlers(designId) {
           applyTransform();
         });
 
-        const endPan = (ev) => {
-          if (!isPanning) return;
-          isPanning = false;
-          stage.classList.remove("is-panning");
+        const onPointerEnd = (ev) => {
+          pointers.delete(ev.pointerId);
           try {
             stage.releasePointerCapture(ev.pointerId);
           } catch {}
+
+          if (pointers.size < 2) pinchActive = false;
+
+          if (pointers.size === 1) {
+            const remainingId = Array.from(pointers.keys())[0];
+            if (remainingId !== panPointerId) {
+              const pos = pointers.get(remainingId);
+              if (pos) {
+                beginPan({ pointerId: remainingId, clientX: pos.x, clientY: pos.y, button: 0 });
+              }
+            }
+          } else if (pointers.size === 0) {
+            endPan();
+          }
         };
 
-        stage.addEventListener("pointerup", endPan);
-        stage.addEventListener("pointercancel", endPan);
+        stage.addEventListener("pointerup", onPointerEnd);
+        stage.addEventListener("pointercancel", onPointerEnd);
 
         stage.addEventListener("dblclick", () => resetView());
       }
