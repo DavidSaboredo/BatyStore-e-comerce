@@ -1171,7 +1171,13 @@ function renderCatalog(query) {
         <p class="panel-subtitle">Elegí un diseño y pasá directo al pedido.</p>
         ${
           designs.length > 0
-            ? `<div class="carousel-shell"><div class="design-carousel" id="homeDesignCarousel" role="list">${designsHtml}</div></div>`
+            ? `
+              <div class="carousel-shell">
+                <button class="carousel-btn prev" type="button" aria-label="Anterior" id="homeCarouselPrev">‹</button>
+                <div class="design-carousel" id="homeDesignCarousel" role="list" aria-label="Diseños de la casa">${designsHtml}</div>
+                <button class="carousel-btn next" type="button" aria-label="Siguiente" id="homeCarouselNext">›</button>
+              </div>
+            `
             : `<div class="notice"><div class="notice-title">Próximamente</div><p class="notice-text">Todavía no hay diseños publicados.</p></div>`
         }
       </section>
@@ -1203,10 +1209,107 @@ function attachCatalogHandlers() {
       navigate(`#/diseno/${id}`);
     });
   });
+
+  const carousel = document.getElementById("homeDesignCarousel");
+  const prevBtn = document.getElementById("homeCarouselPrev");
+  const nextBtn = document.getElementById("homeCarouselNext");
+
+  if (carousel instanceof HTMLElement) {
+    initHorizontalCarousel(carousel, prevBtn, nextBtn);
+  }
 }
 
 function findProduct(productId) {
   return PRODUCTS.find((p) => p.id === productId) || null;
+}
+
+function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
+  const prev = prevBtn instanceof HTMLElement ? prevBtn : null;
+  const next = nextBtn instanceof HTMLElement ? nextBtn : null;
+
+  carousel.style.cursor = "grab";
+  carousel.style.userSelect = "none";
+
+  let isDown = false;
+  let startX = 0;
+  let startScrollLeft = 0;
+  let lastDragAt = 0;
+  let dragDistance = 0;
+
+  function updateButtons() {
+    if (!prev && !next) return;
+    const max = carousel.scrollWidth - carousel.clientWidth;
+    const x = carousel.scrollLeft;
+    const atStart = x <= 2;
+    const atEnd = x >= max - 2;
+    if (prev) prev.disabled = atStart;
+    if (next) next.disabled = atEnd;
+    if (prev) prev.setAttribute("aria-disabled", String(atStart));
+    if (next) next.setAttribute("aria-disabled", String(atEnd));
+  }
+
+  function scrollByPage(dir) {
+    const amount = Math.max(220, Math.floor(carousel.clientWidth * 0.85));
+    carousel.scrollBy({ left: dir * amount, behavior: "smooth" });
+  }
+
+  if (prev) prev.addEventListener("click", () => scrollByPage(-1));
+  if (next) next.addEventListener("click", () => scrollByPage(1));
+
+  carousel.addEventListener(
+    "wheel",
+    (e) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      carousel.scrollLeft += e.deltaY;
+    },
+    { passive: false },
+  );
+
+  carousel.addEventListener("scroll", updateButtons, { passive: true });
+  updateButtons();
+
+  carousel.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    isDown = true;
+    startX = e.clientX;
+    startScrollLeft = carousel.scrollLeft;
+    dragDistance = 0;
+    lastDragAt = 0;
+    carousel.style.cursor = "grabbing";
+    carousel.setPointerCapture(e.pointerId);
+  });
+
+  carousel.addEventListener("pointermove", (e) => {
+    if (!isDown) return;
+    const dx = e.clientX - startX;
+    dragDistance = Math.max(dragDistance, Math.abs(dx));
+    carousel.scrollLeft = startScrollLeft - dx;
+    if (dragDistance > 6) lastDragAt = Date.now();
+  });
+
+  function endDrag(e) {
+    if (!isDown) return;
+    isDown = false;
+    carousel.style.cursor = "grab";
+    try {
+      carousel.releasePointerCapture(e.pointerId);
+    } catch {}
+  }
+
+  carousel.addEventListener("pointerup", endDrag);
+  carousel.addEventListener("pointercancel", endDrag);
+
+  carousel.addEventListener(
+    "click",
+    (e) => {
+      if (dragDistance > 6 && Date.now() - lastDragAt < 400) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    true,
+  );
 }
 
 function renderDesignOrder(designId) {
