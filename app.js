@@ -1316,6 +1316,7 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
   let startScrollLeft = 0;
   let didDrag = false;
   let dragBlockUntil = 0;
+  let activePointerId = null;
 
   function updateButtons() {
     if (!prev && !next) return;
@@ -1352,33 +1353,44 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
 
   carousel.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    if (target && target.closest(".carousel-btn")) return;
+
     isDown = true;
+    activePointerId = e.pointerId;
     startX = e.clientX;
     startScrollLeft = carousel.scrollLeft;
     didDrag = false;
     carousel.style.cursor = "grabbing";
-    carousel.setPointerCapture(e.pointerId);
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp, { passive: true });
+    window.addEventListener("pointercancel", onUp, { passive: true });
   });
 
-  carousel.addEventListener("pointermove", (e) => {
+  function onMove(e) {
     if (!isDown) return;
+    if (activePointerId !== e.pointerId) return;
     const dx = e.clientX - startX;
     if (Math.abs(dx) > 10) didDrag = true;
+    if (!didDrag) return;
+    e.preventDefault();
     carousel.scrollLeft = startScrollLeft - dx;
-  });
-
-  function endDrag(e) {
-    if (!isDown) return;
-    isDown = false;
-    carousel.style.cursor = "grab";
-    if (didDrag) dragBlockUntil = Date.now() + 450;
-    try {
-      carousel.releasePointerCapture(e.pointerId);
-    } catch {}
   }
 
-  carousel.addEventListener("pointerup", endDrag);
-  carousel.addEventListener("pointercancel", endDrag);
+  function onUp(e) {
+    if (!isDown) return;
+    if (activePointerId !== e.pointerId) return;
+
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+
+    isDown = false;
+    activePointerId = null;
+    carousel.style.cursor = "grab";
+    if (didDrag) dragBlockUntil = Date.now() + 450;
+  }
 
   carousel.addEventListener(
     "click",
