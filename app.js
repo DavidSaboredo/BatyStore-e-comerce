@@ -649,40 +649,91 @@ function renderAdmin(query) {
   const grande = Number(pricing.stampSizes?.grande) || 0;
   const hatStamp = Number(pricing.hatStamp) || 0;
 
+  const designsListHtml =
+    designs.length > 0
+      ? designs
+          .map((d) => {
+            const img = typeof d?.imageUrl === "string" ? d.imageUrl.trim() : "";
+            const media = img
+              ? `<img class="admin-design-img" src="${escapeHtml(img)}" alt="${escapeHtml(d.name)}" loading="lazy" />`
+              : `<div class="admin-design-img placeholder"></div>`;
+            const productId = typeof d?.productId === "string" ? d.productId : "";
+            const productName = findProduct(productId)?.name || productId || "—";
+            const sizes = Array.isArray(d?.allowedSizes) ? d.allowedSizes.join(", ") : "";
+            const price = designPriceFor(d);
+            return `
+              <div class="admin-design-card" data-design-id="${escapeHtml(d.id)}">
+                ${media}
+                <div class="admin-design-meta">
+                  <div class="admin-design-name">${escapeHtml(d.name)}</div>
+                  <div class="admin-design-sub">${escapeHtml(productName)}${sizes ? ` • ${escapeHtml(sizes)}` : ""}</div>
+                  <div class="admin-design-price">${price ? `+${formatMoney(price)}` : ""}</div>
+                </div>
+                <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(d.id)}">Quitar</button>
+              </div>
+            `;
+          })
+          .join("")
+      : `<div class="notice"><div class="notice-title">Sin diseños</div><p class="notice-text">Agregá el primero con el formulario.</p></div>`;
+
   return `
     <section class="panel">
       <h1 class="panel-title">Admin</h1>
-      <p class="panel-subtitle">Cambios guardados en este navegador.</p>
+      <p class="panel-subtitle">Cargá diseños y publicalos para que los vean todos.</p>
       <div class="divider"></div>
 
       <form id="adminForm" class="form" autocomplete="off">
-        <div class="notice" id="publishStatus">
-          <div class="notice-title">Estado</div>
-          <p class="notice-text">Listo para publicar.</p>
-        </div>
-        <div class="row" style="justify-content:flex-start">
-          <button class="btn btn-outline" type="button" id="testApiBtn">Probar conexión</button>
+        <div class="field full">
+          <div class="admin-toolbar">
+            <div class="notice" id="publishStatus">
+              <div class="notice-title">Estado</div>
+              <p class="notice-text">Listo para publicar.</p>
+            </div>
+            <div class="admin-toolbar-actions">
+              <button class="btn btn-outline" type="button" id="testApiBtn">Probar conexión</button>
+              <button class="btn btn-primary" type="submit">Publicar</button>
+            </div>
+          </div>
         </div>
 
         <div class="field full">
-          <label>Nuevo diseño (rápido)</label>
-          <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
-            <input id="newDesignId" placeholder="id (ej: baty-01)" />
-            <input id="newDesignName" placeholder="Nombre" />
-            <input id="newDesignPrice" placeholder="Precio" inputmode="numeric" />
-          </div>
-          <div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-top:10px">
-            <select id="newDesignProduct">
-              ${PRODUCTS.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("")}
-            </select>
-            <input id="newDesignSizes" placeholder="Talles permitidos (ej: 1,2,3,4)" />
-          </div>
-          <div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-top:10px">
-            <input id="newDesignImageUrl" placeholder="URL de imagen (opcional)" style="flex:1;min-width:260px" />
+          <h2 class="panel-title" style="margin:0">Diseños</h2>
+          <p class="panel-subtitle" style="margin:8px 0 0">Estos son los que ve el cliente.</p>
+        </div>
+
+        <div class="field full" id="adminDesignList">
+          ${designsListHtml}
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <label for="newDesignName">Nombre</label>
+          <input id="newDesignName" placeholder="Ej: Gekk1" />
+        </div>
+        <div class="field">
+          <label for="newDesignPrice">Precio</label>
+          <input id="newDesignPrice" inputmode="numeric" placeholder="Ej: 25000" />
+        </div>
+        <div class="field">
+          <label for="newDesignProduct">Producto</label>
+          <select id="newDesignProduct">
+            ${PRODUCTS.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field">
+          <label for="newDesignSizes">Talles</label>
+          <input id="newDesignSizes" placeholder="Ej: 1,2,3,4" />
+        </div>
+
+        <div class="field full">
+          <label for="newDesignFile">Imagen</label>
+          <div class="admin-file-row">
             <input id="newDesignFile" type="file" accept="image/*" />
-            <button class="btn btn-outline" type="button" id="addDesignToJson">Agregar al JSON</button>
+            <input id="newDesignImageUrl" placeholder="URL (se completa al subir)" />
+            <button class="btn btn-outline" type="button" id="addDesignToJson">Agregar</button>
           </div>
-          <div class="hint">El archivo se sube a Cloudinary y se pega la URL.</div>
+          <div class="hint">Se sube a Cloudinary y queda visible en el carrusel.</div>
         </div>
 
         <div class="field full">
@@ -690,14 +741,6 @@ function renderAdmin(query) {
           <textarea id="designsJson" name="designsJson" rows="10" class="mono">${designsJson}</textarea>
           <div class="hint">
             Formato: [{"id":"baty-01","name":"Baty 01","price":2500,"productId":"remera-basica","allowedSizes":[1,2,3],"imageUrl":"https://..."}]
-          </div>
-        </div>
-
-        <div class="field full">
-          <label>Eliminar diseño</label>
-          <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
-            <input id="deleteDesignId" placeholder="id a eliminar" />
-            <button class="btn btn-danger" type="button" id="deleteDesignBtn">Eliminar</button>
           </div>
         </div>
 
@@ -724,7 +767,6 @@ function renderAdmin(query) {
           <div class="row">
             <button class="btn" type="button" id="adminBack">Volver</button>
             <button class="btn btn-outline" type="button" id="adminReset">Restaurar</button>
-            <button class="btn btn-primary" type="submit">Guardar</button>
           </div>
         </div>
 
@@ -763,16 +805,74 @@ function attachAdminHandlers(query) {
   const newDesignFile = document.getElementById("newDesignFile");
   const newDesignImageUrl = document.getElementById("newDesignImageUrl");
   const addDesignToJson = document.getElementById("addDesignToJson");
-  const deleteDesignBtn = document.getElementById("deleteDesignBtn");
-  const deleteDesignId = document.getElementById("deleteDesignId");
+  const adminDesignList = document.getElementById("adminDesignList");
   const publishStatus = document.getElementById("publishStatus");
   const testApiBtn = document.getElementById("testApiBtn");
+
+  function parseDesignsFromTextarea() {
+    if (!(designsJsonEl instanceof HTMLTextAreaElement)) return [];
+    try {
+      const raw = designsJsonEl.value.trim();
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeDesignsToTextarea(list) {
+    if (!(designsJsonEl instanceof HTMLTextAreaElement)) return;
+    designsJsonEl.value = JSON.stringify(list, null, 2);
+  }
+
+  function renderAdminDesignList() {
+    if (!adminDesignList) return;
+    const list = parseDesignsFromTextarea();
+    if (!Array.isArray(list) || list.length === 0) {
+      adminDesignList.innerHTML =
+        `<div class="notice"><div class="notice-title">Sin diseños</div><p class="notice-text">Agregá el primero con el formulario.</p></div>`;
+      return;
+    }
+
+    const html = list
+      .map((d) => {
+        const id = String(d?.id || "").trim();
+        const name = String(d?.name || "").trim();
+        const img = typeof d?.imageUrl === "string" ? d.imageUrl.trim() : "";
+        const media = img
+          ? `<img class="admin-design-img" src="${escapeHtml(img)}" alt="${escapeHtml(name)}" loading="lazy" />`
+          : `<div class="admin-design-img placeholder"></div>`;
+        const productId = typeof d?.productId === "string" ? d.productId.trim() : "";
+        const productName = findProduct(productId)?.name || productId || "—";
+        const sizes = Array.isArray(d?.allowedSizes) ? d.allowedSizes.join(", ") : "";
+        const price = designPriceFor(d);
+        return `
+          <div class="admin-design-card" data-design-id="${escapeHtml(id)}">
+            ${media}
+            <div class="admin-design-meta">
+              <div class="admin-design-name">${escapeHtml(name || id)}</div>
+              <div class="admin-design-sub">${escapeHtml(productName)}${sizes ? ` • ${escapeHtml(sizes)}` : ""}</div>
+              <div class="admin-design-price">${price ? `+${formatMoney(price)}` : ""}</div>
+            </div>
+            <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(id)}">Quitar</button>
+          </div>
+        `;
+      })
+      .join("");
+    adminDesignList.innerHTML = html;
+  }
+
+  renderAdminDesignList();
 
   if (newDesignFile instanceof HTMLInputElement) {
     newDesignFile.addEventListener("change", async () => {
       const file = newDesignFile.files && newDesignFile.files[0] ? newDesignFile.files[0] : null;
       if (!file) return;
       try {
+        if (publishStatus) {
+          publishStatus.querySelector(".notice-title").textContent = "Imagen";
+          publishStatus.querySelector(".notice-text").textContent = "Subiendo a Cloudinary...";
+        }
         const uploaded = await uploadDesignToCloudinary(file);
         if (newDesignImageUrl instanceof HTMLInputElement) {
           newDesignImageUrl.value = uploaded.url;
@@ -780,8 +880,16 @@ function attachAdminHandlers(query) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "No se pudo subir la imagen.";
         alert(msg);
+        if (publishStatus) {
+          publishStatus.querySelector(".notice-title").textContent = "Error";
+          publishStatus.querySelector(".notice-text").textContent = msg;
+        }
       } finally {
         newDesignFile.value = "";
+        if (publishStatus) {
+          publishStatus.querySelector(".notice-title").textContent = "Estado";
+          publishStatus.querySelector(".notice-text").textContent = "Listo para publicar.";
+        }
       }
     });
   }
@@ -790,17 +898,24 @@ function attachAdminHandlers(query) {
     addDesignToJson.addEventListener("click", () => {
       if (!(designsJsonEl instanceof HTMLTextAreaElement)) return;
 
-      const id = String(document.getElementById("newDesignId")?.value || "").trim();
       const name = String(document.getElementById("newDesignName")?.value || "").trim();
       const price = clampNumber(document.getElementById("newDesignPrice")?.value, 0, 1_000_000);
       const productId = String(document.getElementById("newDesignProduct")?.value || "").trim();
       const sizesRaw = String(document.getElementById("newDesignSizes")?.value || "").trim();
       const imageUrl = String(document.getElementById("newDesignImageUrl")?.value || "").trim();
 
-      if (!id || !name) {
-        alert("Completá id y nombre del diseño.");
+      if (!name) {
+        alert("Completá el nombre del diseño.");
         return;
       }
+
+      const baseId = name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 36);
 
       const allowedSizes = sizesRaw
         ? sizesRaw
@@ -813,13 +928,10 @@ function attachAdminHandlers(query) {
             })
         : [];
 
-      let list = [];
-      try {
-        const raw = designsJsonEl.value.trim();
-        list = raw ? JSON.parse(raw) : [];
-        if (!Array.isArray(list)) list = [];
-      } catch {
-        list = [];
+      const list = parseDesignsFromTextarea();
+      let id = baseId || `design-${Math.random().toString(16).slice(2, 8)}`;
+      if (list.some((d) => String(d?.id || "") === id)) {
+        id = `${id}-${Math.random().toString(16).slice(2, 6)}`;
       }
 
       list.push({
@@ -831,28 +943,30 @@ function attachAdminHandlers(query) {
         imageUrl,
       });
 
-      designsJsonEl.value = JSON.stringify(list, null, 2);
+      writeDesignsToTextarea(list);
+      renderAdminDesignList();
+
+      const nameEl = document.getElementById("newDesignName");
+      const priceEl = document.getElementById("newDesignPrice");
+      const sizesEl = document.getElementById("newDesignSizes");
+      if (nameEl && "value" in nameEl) nameEl.value = "";
+      if (priceEl && "value" in priceEl) priceEl.value = "";
+      if (sizesEl && "value" in sizesEl) sizesEl.value = "";
     });
   }
 
-  if (deleteDesignBtn) {
-    deleteDesignBtn.addEventListener("click", () => {
-      if (!(designsJsonEl instanceof HTMLTextAreaElement)) return;
-      const id = String(deleteDesignId?.value || "").trim();
+  if (adminDesignList) {
+    adminDesignList.addEventListener("click", (e) => {
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (!target) return;
+      const btn = target.closest("[data-remove-design]");
+      if (!(btn instanceof HTMLElement)) return;
+      const id = btn.getAttribute("data-remove-design") || "";
       if (!id) return;
-
-      let list = [];
-      try {
-        const raw = designsJsonEl.value.trim();
-        list = raw ? JSON.parse(raw) : [];
-        if (!Array.isArray(list)) list = [];
-      } catch {
-        list = [];
-      }
-
+      const list = parseDesignsFromTextarea();
       const next = list.filter((d) => String(d?.id || "") !== id);
-      designsJsonEl.value = JSON.stringify(next, null, 2);
-      if (deleteDesignId && "value" in deleteDesignId) deleteDesignId.value = "";
+      writeDesignsToTextarea(next);
+      renderAdminDesignList();
     });
   }
 
@@ -1015,7 +1129,9 @@ function renderCatalog(query) {
         : `<div class="design-card-img placeholder"></div>`;
       const price = designPriceFor(d);
       return `
-        <button class="design-card" type="button" data-design-order="${escapeHtml(d.id)}">
+        <button class="design-card" type="button" role="listitem" aria-label="Ver diseño ${escapeHtml(
+          d.name,
+        )}" data-design-order="${escapeHtml(d.id)}">
           ${media}
           <div class="design-card-name">${escapeHtml(d.name)}</div>
           <div class="design-card-price">${price ? `+${formatMoney(price)}` : ""}</div>
@@ -1055,7 +1171,7 @@ function renderCatalog(query) {
         <p class="panel-subtitle">Elegí un diseño y pasá directo al pedido.</p>
         ${
           designs.length > 0
-            ? `<div class="design-carousel" id="homeDesignCarousel">${designsHtml}</div>`
+            ? `<div class="carousel-shell"><div class="design-carousel" id="homeDesignCarousel" role="list">${designsHtml}</div></div>`
             : `<div class="notice"><div class="notice-title">Próximamente</div><p class="notice-text">Todavía no hay diseños publicados.</p></div>`
         }
       </section>

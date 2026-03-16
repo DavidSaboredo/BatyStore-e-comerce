@@ -211,7 +211,32 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   gap:10px;
   overflow-x:auto;
   -webkit-overflow-scrolling:touch;
-  padding:6px 2px;
+  padding:10px 12px;
+  scroll-snap-type:x mandatory;
+  scroll-padding-left:12px;
+  scroll-padding-right:12px;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;
+}
+.design-carousel::-webkit-scrollbar{display:none}
+.carousel-shell{position:relative}
+.carousel-shell::before,
+.carousel-shell::after{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:38px;
+  pointer-events:none;
+  z-index:2;
+}
+.carousel-shell::before{
+  left:0;
+  background:linear-gradient(90deg, rgba(20,20,26,.92), rgba(20,20,26,0));
+}
+.carousel-shell::after{
+  right:0;
+  background:linear-gradient(270deg, rgba(20,20,26,.92), rgba(20,20,26,0));
 }
 .design-card{
   flex:0 0 auto;
@@ -223,6 +248,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   color:var(--text);
   padding:12px;
   cursor:pointer;
+  scroll-snap-align:start;
 }
 .design-card:hover{border-color:rgba(242,161,12,.35)}
 .design-card.is-selected{border-color:rgba(242,161,12,.75);background:rgba(242,161,12,.08)}
@@ -254,6 +280,43 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 }
 .design-hero-img.placeholder{
   background:linear-gradient(135deg, rgba(242,161,12,.18), rgba(140,82,255,.12));
+}
+
+ .admin-toolbar{display:flex;gap:12px;align-items:stretch;justify-content:space-between;flex-wrap:wrap}
+ .admin-toolbar-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ .admin-design-card{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  padding:10px;
+  border-radius:16px;
+  border:1px solid rgba(42,42,51,.85);
+  background:rgba(11,11,14,.25);
+ }
+ .admin-design-img{
+  width:54px;
+  height:54px;
+  border-radius:14px;
+  object-fit:cover;
+  border:1px solid rgba(42,42,51,.8);
+  background:rgba(11,11,14,.35);
+  flex:0 0 auto;
+ }
+ .admin-design-img.placeholder{background:linear-gradient(135deg, rgba(242,161,12,.18), rgba(140,82,255,.12))}
+ .admin-design-meta{min-width:0;flex:1 1 auto}
+ .admin-design-name{font-weight:900;line-height:1.15}
+ .admin-design-sub{color:var(--muted);font-size:12px;margin-top:4px}
+ .admin-design-price{color:var(--primary);font-weight:900;margin-top:6px}
+ .admin-file-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ .admin-file-row > input[type="file"]{max-width:240px}
+ .admin-file-row > input#newDesignImageUrl{flex:1 1 240px;min-width:220px}
+
+@media (max-width:640px){
+  .design-carousel{padding:10px 10px;scroll-padding-left:10px;scroll-padding-right:10px}
+  .design-card{min-width:78vw;max-width:78vw}
+  .design-card-img{height:150px}
+  .admin-toolbar{flex-direction:column}
+  .admin-design-card{align-items:flex-start}
 }
 
 .btn{
