@@ -287,13 +287,27 @@ function getPricing() {
   const published = getPublishedPricing();
   const saved = published || getSettings()?.pricing;
   const base = {
+    productBase: {
+      remeraPeinado: PRODUCTS.find((p) => p.id === "remera-basica")?.basePrice ?? 0,
+      remeraAlgodon100: PRODUCTS.find((p) => p.id === "remera-basica")?.basePrice ?? 0,
+      buzo: PRODUCTS.find((p) => p.id === "buzo-canguro")?.basePrice ?? 0,
+      gorra: PRODUCTS.find((p) => p.id === "gorra-clasica")?.basePrice ?? 0,
+    },
     stampSizes: { chico: 4500, mediano: 6900, grande: 7900 },
     hatStamp: 4900,
     designOverrideById: {},
+    shipping: {
+      pickupLabel: CONFIG.shipping.pickupLabel,
+      deliveryLabel: CONFIG.shipping.deliveryLabel,
+      deliveryFlatRate: CONFIG.shipping.deliveryFlatRate,
+    },
   };
   if (!saved || typeof saved !== "object") return base;
 
   const out = { ...base };
+  if (saved.productBase && typeof saved.productBase === "object") {
+    out.productBase = { ...out.productBase, ...saved.productBase };
+  }
   if (saved.stampSizes && typeof saved.stampSizes === "object") {
     out.stampSizes = { ...out.stampSizes, ...saved.stampSizes };
   }
@@ -301,7 +315,35 @@ function getPricing() {
   if (saved.designOverrideById && typeof saved.designOverrideById === "object") {
     out.designOverrideById = { ...out.designOverrideById, ...saved.designOverrideById };
   }
+  if (saved.shipping && typeof saved.shipping === "object") {
+    out.shipping = { ...out.shipping, ...saved.shipping };
+  }
   return out;
+}
+
+function productBasePriceFor(product, materialId) {
+  const pricing = getPricing();
+  const base = pricing.productBase || {};
+  const type = String(product?.type || "");
+  if (type === "Remera") {
+    if (materialId === "algodon100") return Number(base.remeraAlgodon100) || product.basePrice;
+    return Number(base.remeraPeinado) || product.basePrice;
+  }
+  if (type === "Buzo") return Number(base.buzo) || product.basePrice;
+  if (type === "Gorra") return Number(base.gorra) || product.basePrice;
+  return product?.basePrice ?? 0;
+}
+
+function shippingConfig() {
+  const pricing = getPricing();
+  const s = pricing.shipping && typeof pricing.shipping === "object" ? pricing.shipping : {};
+  return {
+    pickupLabel: typeof s.pickupLabel === "string" && s.pickupLabel ? s.pickupLabel : CONFIG.shipping.pickupLabel,
+    deliveryLabel:
+      typeof s.deliveryLabel === "string" && s.deliveryLabel ? s.deliveryLabel : CONFIG.shipping.deliveryLabel,
+    deliveryFlatRate:
+      typeof s.deliveryFlatRate === "number" ? s.deliveryFlatRate : Number(CONFIG.shipping.deliveryFlatRate) || 0,
+  };
 }
 
 function isHatProduct(product) {
@@ -329,8 +371,9 @@ function computeItemTotal(item) {
 
 function computeCartTotals(cart, checkout) {
   const itemsSubtotal = cart.reduce((sum, item) => sum + computeItemTotal(item), 0);
+  const ship = shippingConfig();
   const shippingCost =
-    checkout?.shippingMethod === "delivery" ? CONFIG.shipping.deliveryFlatRate : 0;
+    checkout?.shippingMethod === "delivery" ? ship.deliveryFlatRate : 0;
   const total = itemsSubtotal + shippingCost;
   const deposit = Math.ceil(total * CONFIG.depositPercent);
   return { itemsSubtotal, shippingCost, total, deposit };
@@ -648,6 +691,13 @@ function renderAdmin(query) {
   const mediano = Number(pricing.stampSizes?.mediano) || 0;
   const grande = Number(pricing.stampSizes?.grande) || 0;
   const hatStamp = Number(pricing.hatStamp) || 0;
+  const remeraPeinado = Number(pricing.productBase?.remeraPeinado) || 0;
+  const remeraAlgodon100 = Number(pricing.productBase?.remeraAlgodon100) || 0;
+  const buzoBase = Number(pricing.productBase?.buzo) || 0;
+  const gorraBase = Number(pricing.productBase?.gorra) || 0;
+  const pickupLabel = typeof pricing.shipping?.pickupLabel === "string" ? pricing.shipping.pickupLabel : "";
+  const deliveryLabel = typeof pricing.shipping?.deliveryLabel === "string" ? pricing.shipping.deliveryLabel : "";
+  const deliveryFlatRate = Number(pricing.shipping?.deliveryFlatRate) || 0;
 
   const designsListHtml =
     designs.length > 0
@@ -724,7 +774,6 @@ function renderAdmin(query) {
         <div class="field">
           <label for="newDesignColor">Color (fijo)</label>
           <select id="newDesignColor">
-            <option value="">A elección del cliente</option>
             ${(PRODUCTS[0]?.colors || [])
               .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
               .join("")}
@@ -767,6 +816,56 @@ function renderAdmin(query) {
         </div>
 
         <div class="divider"></div>
+
+        <div class="field full">
+          <h2 class="panel-title" style="margin:0">Precios</h2>
+          <p class="panel-subtitle" style="margin:8px 0 0">Estos precios se usan en toda la web.</p>
+        </div>
+
+        <div class="field">
+          <label for="priceRemeraPeinado">Remera (Algodón Peinado)</label>
+          <input id="priceRemeraPeinado" name="priceRemeraPeinado" inputmode="numeric" value="${escapeHtml(
+            remeraPeinado,
+          )}" />
+        </div>
+        <div class="field">
+          <label for="priceRemeraAlgodon100">Remera (Algodón 100%)</label>
+          <input id="priceRemeraAlgodon100" name="priceRemeraAlgodon100" inputmode="numeric" value="${escapeHtml(
+            remeraAlgodon100,
+          )}" />
+        </div>
+        <div class="field">
+          <label for="priceBuzo">Buzo</label>
+          <input id="priceBuzo" name="priceBuzo" inputmode="numeric" value="${escapeHtml(buzoBase)}" />
+        </div>
+        <div class="field">
+          <label for="priceGorra">Gorra</label>
+          <input id="priceGorra" name="priceGorra" inputmode="numeric" value="${escapeHtml(gorraBase)}" />
+        </div>
+
+        <div class="field full">
+          <h2 class="panel-title" style="margin:0">Delivery</h2>
+        </div>
+        <div class="field">
+          <label for="pickupLabel">Etiqueta retiro</label>
+          <input id="pickupLabel" name="pickupLabel" value="${escapeHtml(pickupLabel)}" />
+        </div>
+        <div class="field">
+          <label for="deliveryLabel">Etiqueta envío</label>
+          <input id="deliveryLabel" name="deliveryLabel" value="${escapeHtml(deliveryLabel)}" />
+        </div>
+        <div class="field">
+          <label for="deliveryFlatRate">Costo envío</label>
+          <input id="deliveryFlatRate" name="deliveryFlatRate" inputmode="numeric" value="${escapeHtml(
+            deliveryFlatRate,
+          )}" />
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field full">
+          <h2 class="panel-title" style="margin:0">Estampas</h2>
+        </div>
 
         <div class="field">
           <label for="priceChico">Estampa chico</label>
@@ -905,10 +1004,11 @@ function attachAdminHandlers(query) {
 
     if (newDesignColor instanceof HTMLSelectElement) {
       const current = newDesignColor.value;
-      newDesignColor.innerHTML =
-        `<option value="">A elección del cliente</option>` +
-        colors.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+      newDesignColor.innerHTML = colors.length
+        ? colors.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")
+        : `<option value="">—</option>`;
       if (colors.includes(current)) newDesignColor.value = current;
+      else if (colors.length) newDesignColor.value = colors[0];
       else newDesignColor.value = "";
     }
 
@@ -975,7 +1075,12 @@ function attachAdminHandlers(query) {
       const productId = String(document.getElementById("newDesignProduct")?.value || "").trim();
       const sizesRaw = String(document.getElementById("newDesignSizes")?.value || "").trim();
       const imageUrl = String(document.getElementById("newDesignImageUrl")?.value || "").trim();
-      const fixedColor = newDesignColor instanceof HTMLSelectElement ? String(newDesignColor.value || "").trim() : "";
+      const product = findProduct(productId || "remera-basica");
+      const fallbackColor =
+        Array.isArray(product?.colors) && product.colors.length > 0 ? String(product.colors[0]) : "";
+      const fixedColorRaw =
+        newDesignColor instanceof HTMLSelectElement ? String(newDesignColor.value || "").trim() : "";
+      const fixedColor = fixedColorRaw || fallbackColor;
       const fixedSize = newDesignFixedSize instanceof HTMLSelectElement ? String(newDesignFixedSize.value || "").trim() : "";
       const materialId = newDesignMaterial instanceof HTMLSelectElement ? String(newDesignMaterial.value || "").trim() : "";
 
@@ -1129,12 +1234,30 @@ function attachAdminHandlers(query) {
     const priceMediano = clampNumber(fd.get("priceMediano"), 0, 1_000_000);
     const priceGrande = clampNumber(fd.get("priceGrande"), 0, 1_000_000);
     const priceHat = clampNumber(fd.get("priceHat"), 0, 1_000_000);
+    const priceRemeraPeinado = clampNumber(fd.get("priceRemeraPeinado"), 0, 1_000_000);
+    const priceRemeraAlgodon100 = clampNumber(fd.get("priceRemeraAlgodon100"), 0, 1_000_000);
+    const priceBuzo = clampNumber(fd.get("priceBuzo"), 0, 1_000_000);
+    const priceGorra = clampNumber(fd.get("priceGorra"), 0, 1_000_000);
+    const pickupLabel = String(fd.get("pickupLabel") || "").trim();
+    const deliveryLabel = String(fd.get("deliveryLabel") || "").trim();
+    const deliveryFlatRate = clampNumber(fd.get("deliveryFlatRate"), 0, 1_000_000);
 
     const next = { ...getSettings() };
     next.designs = designs;
     next.pricing = {
+      productBase: {
+        remeraPeinado: priceRemeraPeinado,
+        remeraAlgodon100: priceRemeraAlgodon100,
+        buzo: priceBuzo,
+        gorra: priceGorra,
+      },
       stampSizes: { chico: priceChico, mediano: priceMediano, grande: priceGrande },
       hatStamp: priceHat,
+      shipping: {
+        pickupLabel: pickupLabel || CONFIG.shipping.pickupLabel,
+        deliveryLabel: deliveryLabel || CONFIG.shipping.deliveryLabel,
+        deliveryFlatRate,
+      },
     };
     setSettings(next);
 
@@ -1182,6 +1305,8 @@ function attachAdminHandlers(query) {
 
 function renderCatalog(query) {
   const itemsHtml = PRODUCTS.map((p) => {
+    const base =
+      p.type === "Remera" ? productBasePriceFor(p, "peinado") : productBasePriceFor(p, "");
     return `
       <article class="card">
         <div class="thumb" data-label="${escapeHtml(p.type)}">
@@ -1189,7 +1314,7 @@ function renderCatalog(query) {
         </div>
         <div class="row">
           <div class="pill">Personalizable</div>
-          <div class="price">${formatMoney(p.basePrice)}</div>
+          <div class="price">${formatMoney(base)}</div>
         </div>
         <h3 class="card-title">${escapeHtml(p.name)}</h3>
         <p class="card-meta">${escapeHtml(p.description)}</p>
@@ -1416,6 +1541,8 @@ function renderDesignOrder(designId) {
   const fixedColor = typeof design.fixedColor === "string" ? design.fixedColor.trim() : "";
   const materialId = typeof design.materialId === "string" ? design.materialId.trim() : "";
   const materialLabel = materialId ? MATERIALS.find((m) => m.id === materialId)?.label || materialId : "";
+  const fallbackColor = Array.isArray(product.colors) && product.colors.length > 0 ? String(product.colors[0]) : "";
+  const effectiveColor = fixedColor || fallbackColor;
 
   const allowed =
     fixedSize
@@ -1428,17 +1555,14 @@ function renderDesignOrder(designId) {
     .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
     .join("");
 
-  const colors = fixedColor
-    ? `<option value="${escapeHtml(fixedColor)}">${escapeHtml(fixedColor)}</option>`
-    : (product.colors || []).map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-
   const img = typeof design.imageUrl === "string" ? design.imageUrl.trim() : "";
   const media = img
     ? `<img class="design-hero-img" src="${escapeHtml(img)}" alt="${escapeHtml(design.name)}" />`
     : `<div class="design-hero-img placeholder"></div>`;
 
+  const base = productBasePriceFor(product, materialId || "peinado");
   const extra = designPriceFor(design);
-  const estimated = product.basePrice + extra;
+  const estimated = base + extra;
 
   return `
     <div class="two-col">
@@ -1473,12 +1597,8 @@ function renderDesignOrder(designId) {
 
           <div class="field">
             <label for="color">Color</label>
-            ${
-              fixedColor
-                ? `<input value="${escapeHtml(fixedColor)}" disabled />
-                   <input type="hidden" name="color" value="${escapeHtml(fixedColor)}" />`
-                : `<select id="color" name="color" required>${colors}</select>`
-            }
+            <input value="${escapeHtml(effectiveColor || "—")}" disabled />
+            <input type="hidden" name="color" value="${escapeHtml(effectiveColor)}" />
           </div>
 
           ${
@@ -1512,7 +1632,7 @@ function renderDesignOrder(designId) {
 
         <div class="line">
           <div class="line-title">Producto</div>
-          <div class="mono">${formatMoney(product.basePrice)}</div>
+          <div class="mono">${formatMoney(base)}</div>
         </div>
         <div class="line">
           <div class="line-title">Diseño</div>
@@ -1571,6 +1691,8 @@ function attachDesignOrderHandlers(designId) {
     const fixedSize = typeof design.fixedSize === "string" ? design.fixedSize.trim() : "";
     const fixedColor = typeof design.fixedColor === "string" ? design.fixedColor.trim() : "";
     const fixedMaterialId = typeof design.materialId === "string" ? design.materialId.trim() : "";
+    const fallbackColor = Array.isArray(product.colors) && product.colors.length > 0 ? String(product.colors[0]) : "";
+    const effectiveColor = fixedColor || fallbackColor;
 
     const allowed =
       fixedSize
@@ -1582,7 +1704,7 @@ function attachDesignOrderHandlers(designId) {
       alert("El talle seleccionado no está disponible para este diseño.");
       return;
     }
-    if (fixedColor && color !== fixedColor) {
+    if (effectiveColor && color !== effectiveColor) {
       alert("El color seleccionado no está disponible para este diseño.");
       return;
     }
@@ -1611,7 +1733,7 @@ function attachDesignOrderHandlers(designId) {
         notes,
       },
       quantity: 1,
-      unitPrice: product.basePrice,
+      unitPrice: productBasePriceFor(product, fixedMaterialId || "peinado"),
       extrasPrice: designPriceFor(design),
       createdAt: Date.now(),
     });
@@ -1648,13 +1770,16 @@ function renderProduct(productId) {
     const v = String(i + 1);
     return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
   }).join("");
+  const initialBase = isRemera
+    ? productBasePriceFor(product, defaultMaterial?.id || "peinado")
+    : productBasePriceFor(product, "");
 
   return `
     <div class="two-col">
       <section class="panel">
         <div class="row">
           <div class="pill">Personalizable</div>
-          <div class="price">${formatMoney(product.basePrice)}</div>
+          <div class="price" id="basePriceTop">${formatMoney(initialBase)}</div>
         </div>
         <div class="thumb" data-label="${escapeHtml(product.type)}">
           ${renderThumbMedia(product)}
@@ -1735,7 +1860,7 @@ function renderProduct(productId) {
             <div class="line-title">Producto</div>
             <div class="line-sub">${escapeHtml(product.type)}</div>
           </div>
-          <div class="mono">${formatMoney(product.basePrice)}</div>
+          <div class="mono" id="basePriceSummary">${formatMoney(initialBase)}</div>
         </div>
         <div class="line">
           <div>
@@ -1749,7 +1874,7 @@ function renderProduct(productId) {
             <div class="line-title">Total estimado</div>
             <div class="line-sub">Sin envío</div>
           </div>
-          <div class="mono" id="estimatedTotal">${formatMoney(product.basePrice)}</div>
+          <div class="mono" id="estimatedTotal">${formatMoney(initialBase)}</div>
         </div>
 
         <div class="notice" style="margin-top:12px">
@@ -1808,6 +1933,8 @@ function attachProductHandlers(productId) {
   const uploadField = document.getElementById("uploadField");
   const placementLabel = document.getElementById("placementLabel");
   const placementPriceEl = document.getElementById("placementPrice");
+  const basePriceTopEl = document.getElementById("basePriceTop");
+  const basePriceSummaryEl = document.getElementById("basePriceSummary");
   const estimatedTotalEl = document.getElementById("estimatedTotal");
   const depositHint = document.getElementById("depositHint");
   const backBtn = document.getElementById("backToCatalog");
@@ -1835,12 +1962,16 @@ function attachProductHandlers(productId) {
   }
 
   function refreshPricing() {
+    const materialId = isRemera ? String(materialSelect?.value || "peinado").trim() : "";
+    const base = productBasePriceFor(product, materialId);
     const placement = placementSelect.value;
     const extra = placementPrice(placement);
-    const estimated = product.basePrice + extra;
+    const estimated = base + extra;
     if (placementLabel) placementLabel.textContent = placement;
     if (placementPriceEl) placementPriceEl.textContent = formatMoney(extra);
     if (estimatedTotalEl) estimatedTotalEl.textContent = formatMoney(estimated);
+    if (basePriceTopEl) basePriceTopEl.textContent = formatMoney(base);
+    if (basePriceSummaryEl) basePriceSummaryEl.textContent = formatMoney(base);
     if (depositHint) {
       depositHint.textContent = `Seña estimada: ${formatMoney(
         Math.ceil(estimated * CONFIG.depositPercent),
@@ -1899,6 +2030,7 @@ function attachProductHandlers(productId) {
         return;
       }
 
+      const base = productBasePriceFor(product, isRemera ? material : "");
       const extras = placementPrice(placement);
 
       if (style === "upload") {
@@ -1928,7 +2060,7 @@ function attachProductHandlers(productId) {
           variant: { size, color },
           customization,
           quantity: 1,
-          unitPrice: product.basePrice,
+          unitPrice: base,
           extrasPrice: extras,
           createdAt: Date.now(),
         });
@@ -1958,7 +2090,7 @@ function attachProductHandlers(productId) {
         variant: { size, color },
         customization,
         quantity: 1,
-        unitPrice: product.basePrice,
+        unitPrice: base,
         extrasPrice: extras,
         createdAt: Date.now(),
       });
@@ -2139,6 +2271,7 @@ function renderCheckout() {
   }
 
   const previewTotals = computeCartTotals(cart, { shippingMethod: "pickup" });
+  const ship = shippingConfig();
 
   return `
     <div class="two-col">
@@ -2169,9 +2302,9 @@ function renderCheckout() {
           <div class="field full">
             <label for="shippingMethod">Entrega</label>
             <select id="shippingMethod" name="shippingMethod" required>
-              <option value="pickup">${escapeHtml(CONFIG.shipping.pickupLabel)}</option>
-              <option value="delivery">${escapeHtml(CONFIG.shipping.deliveryLabel)} (+${formatMoney(
-                CONFIG.shipping.deliveryFlatRate,
+              <option value="pickup">${escapeHtml(ship.pickupLabel)}</option>
+              <option value="delivery">${escapeHtml(ship.deliveryLabel)} (+${formatMoney(
+                ship.deliveryFlatRate,
               )})</option>
             </select>
           </div>
