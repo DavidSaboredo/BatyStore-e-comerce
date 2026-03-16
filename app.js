@@ -2138,12 +2138,10 @@ function renderCart() {
 
       if (kind === "house") {
         const name = escapeHtml(item.customization?.designName || "Diseño de la casa");
-        const url = String(item.customization?.imageUrl || "").trim();
+        const designId = escapeHtml(item.customization?.designId || "");
         const materialRaw = String(item.customization?.material || "").trim();
         const materialPart = materialRaw ? ` • ${escapeHtml(materialRaw)}` : "";
-        customLabel = url
-          ? `Diseño: <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${name}</a>`
-          : `Diseño: ${name}`;
+        customLabel = `Diseño: ${name}${designId ? ` (ID: ${designId})` : ""}`;
         subLabel = `${subLabel} • Diseño de la casa${materialPart}`;
       } else if (kind === "upload") {
         const fileUrl = String(item.customization?.fileUrl || "").trim();
@@ -2468,10 +2466,10 @@ function formatCartItemForMessage(item) {
   const materialPart = material ? ` | Material: ${material}` : "";
 
   if (kind === "house") {
+    const designId = String(item?.customization?.designId || "").trim();
     const designName = String(item?.customization?.designName || "-");
-    const imageUrl = String(item?.customization?.imageUrl || "").trim();
-    const img = imageUrl ? ` | Imagen: ${imageUrl}` : "";
-    return `- ${qty}x ${name} (Diseño: ${designName} | Talle: ${talle}${color}${materialPart}${img}${notes})`;
+    const idPart = designId ? ` | ID: ${designId}` : "";
+    return `- ${qty}x ${name} (Diseño: ${designName}${idPart} | Talle: ${talle}${color}${materialPart}${notes})`;
   }
 
   const placement = String(item?.customization?.placement || "-");
@@ -2487,10 +2485,9 @@ function formatCartItemForMessage(item) {
 }
 
 function buildPaymentMessage(order) {
+  const ship = shippingConfig();
   const shippingLabel =
-    order?.checkout?.shippingMethod === "delivery"
-      ? CONFIG.shipping.deliveryLabel
-      : CONFIG.shipping.pickupLabel;
+    order?.checkout?.shippingMethod === "delivery" ? ship.deliveryLabel : ship.pickupLabel;
 
   const lines = [
     `Hola ${CONFIG.storeName}, hice el pedido #${order.number}.`,
