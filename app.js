@@ -4,11 +4,11 @@
   Archivo principal de la app.
 
   Responsabilidades:
-  - Configuración del negocio (seña, envío, WhatsApp y datos bancarios)
+  - Configuración del negocio (pago, envío, WhatsApp y datos bancarios)
   - Catálogo y reglas de personalización
   - Estado local (carrito/pedidos) persistido en localStorage
   - Renderizado SPA por hash (#/)
-  - Generación de pedido + link de WhatsApp para confirmar seña
+  - Generación de pedido + link de WhatsApp para confirmar pago
 
   Nota: este MVP no tiene backend; el historial de pedidos vive en el navegador del usuario.
 */
@@ -18,8 +18,6 @@ const CONFIG = {
   storeName: "BatyStore",
   currency: "ARS",
   locale: "es-AR",
-  depositPercent: 0.3,
-  depositHoursLimit: 48,
   whatsappNumber: "3442409755",
   adminKey: "batygstore19931",
   bank: {
@@ -375,8 +373,7 @@ function computeCartTotals(cart, checkout) {
   const shippingCost =
     checkout?.shippingMethod === "delivery" ? ship.deliveryFlatRate : 0;
   const total = itemsSubtotal + shippingCost;
-  const deposit = Math.ceil(total * CONFIG.depositPercent);
-  return { itemsSubtotal, shippingCost, total, deposit };
+  return { itemsSubtotal, shippingCost, total };
 }
 
 function updateCartCount() {
@@ -1486,7 +1483,7 @@ function renderCatalog(query) {
         <div class="hero-left">
           <h1 class="hero-title">BatyStore</h1>
           <p class="hero-subtitle">
-            Remeras, buzos y gorras con estampas personalizadas. Elegís, configurás y confirmás con seña.
+            Remeras, buzos y gorras con estampas personalizadas. Elegís, configurás y confirmás con pago total.
           </p>
           <div class="hero-actions">
             <a class="btn btn-primary" href="#/como-funciona">Cómo funciona</a>
@@ -1495,9 +1492,9 @@ function renderCatalog(query) {
         </div>
         <div class="hero-right">
           <div class="notice">
-            <div class="notice-title">Pago por seña</div>
+            <div class="notice-title">Pago total</div>
             <p class="notice-text">
-              Confirmás tu pedido abonando una seña del ${(CONFIG.depositPercent * 100).toFixed(0)}%.
+              Confirmás tu pedido abonando el total por transferencia.
               Te mostramos el CVU/CBU al finalizar y podés enviar el mensaje por WhatsApp.
             </p>
           </div>
@@ -1874,12 +1871,8 @@ function renderDesignOrder(designId) {
         </div>
 
         <div class="notice" style="margin-top:12px">
-          <div class="notice-title">Seña para confirmar</div>
-          <p class="notice-text">
-            ${formatMoney(Math.ceil(estimated * CONFIG.depositPercent))} (${(CONFIG.depositPercent * 100).toFixed(
-              0,
-            )}%).
-          </p>
+          <div class="notice-title">Pago total</div>
+          <p class="notice-text">Total a pagar: ${formatMoney(estimated)}.</p>
         </div>
       </aside>
     </div>
@@ -2358,8 +2351,8 @@ function renderProduct(productId) {
         </div>
 
         <div class="notice" style="margin-top:12px">
-          <div class="notice-title">Seña para confirmar</div>
-          <p class="notice-text" id="depositHint">—</p>
+          <div class="notice-title">Pago total</div>
+          <p class="notice-text">El total final se paga por transferencia al confirmar el pedido.</p>
         </div>
       </aside>
     </div>
@@ -2416,7 +2409,6 @@ function attachProductHandlers(productId) {
   const basePriceTopEl = document.getElementById("basePriceTop");
   const basePriceSummaryEl = document.getElementById("basePriceSummary");
   const estimatedTotalEl = document.getElementById("estimatedTotal");
-  const depositHint = document.getElementById("depositHint");
   const backBtn = document.getElementById("backToCatalog");
 
   const isRemera = product.type === "Remera";
@@ -2452,11 +2444,6 @@ function attachProductHandlers(productId) {
     if (estimatedTotalEl) estimatedTotalEl.textContent = formatMoney(estimated);
     if (basePriceTopEl) basePriceTopEl.textContent = formatMoney(base);
     if (basePriceSummaryEl) basePriceSummaryEl.textContent = formatMoney(base);
-    if (depositHint) {
-      depositHint.textContent = `Seña estimada: ${formatMoney(
-        Math.ceil(estimated * CONFIG.depositPercent),
-      )} (${(CONFIG.depositPercent * 100).toFixed(0)}%).`;
-    }
   }
 
   function refreshCustomizationMode() {
@@ -2689,10 +2676,8 @@ function renderCart() {
           <div class="mono">${formatMoney(totals.itemsSubtotal)}</div>
         </div>
         <div class="notice" style="margin-top:12px">
-          <div class="notice-title">Seña</div>
-          <p class="notice-text">
-            Al confirmar, abonás una seña del ${(CONFIG.depositPercent * 100).toFixed(0)}%.
-          </p>
+          <div class="notice-title">Pago total</div>
+          <p class="notice-text">Al confirmar, abonás el total por transferencia.</p>
         </div>
       </aside>
     </div>
@@ -2809,7 +2794,7 @@ function renderCheckout() {
 
       <aside class="panel">
         <h2 class="panel-title">Resumen</h2>
-        <p class="panel-subtitle">Calculamos el total y la seña.</p>
+        <p class="panel-subtitle">Calculamos el total del pedido.</p>
         <div class="divider"></div>
         <div id="totalsBox">
           <div class="line">
@@ -2826,10 +2811,6 @@ function renderCheckout() {
               <div class="line-sub">Precios en ARS</div>
             </div>
             <div class="mono" id="totalVal">${formatMoney(previewTotals.total)}</div>
-          </div>
-          <div class="notice" style="margin-top:12px">
-            <div class="notice-title">Seña</div>
-            <p class="notice-text" id="depositVal">—</p>
           </div>
         </div>
       </aside>
@@ -2850,7 +2831,6 @@ function attachCheckoutHandlers() {
   const subtotalVal = document.getElementById("subtotalVal");
   const shippingVal = document.getElementById("shippingVal");
   const totalVal = document.getElementById("totalVal");
-  const depositVal = document.getElementById("depositVal");
   const backToCart = document.getElementById("backToCart");
 
   function refreshTotals() {
@@ -2859,9 +2839,6 @@ function attachCheckoutHandlers() {
     subtotalVal.textContent = formatMoney(totals.itemsSubtotal);
     shippingVal.textContent = formatMoney(totals.shippingCost);
     totalVal.textContent = formatMoney(totals.total);
-    depositVal.textContent = `${formatMoney(totals.deposit)} (${(CONFIG.depositPercent * 100).toFixed(
-      0,
-    )}%)`;
   }
 
   function refreshAddress() {
@@ -2914,7 +2891,7 @@ function attachCheckoutHandlers() {
     const order = {
       id: orderId,
       number: orderNumber,
-      status: "Esperando seña",
+      status: "Pendiente de pago",
       createdAt: Date.now(),
       cart,
       checkout,
@@ -2996,8 +2973,7 @@ function buildPaymentMessage(order) {
     "",
     `Subtotal: ${formatMoney(order.totals.itemsSubtotal)}`,
     `Envío: ${formatMoney(order.totals.shippingCost)}`,
-    `Total: ${formatMoney(order.totals.total)}`,
-    `Seña (${(CONFIG.depositPercent * 100).toFixed(0)}%): ${formatMoney(order.totals.deposit)}`,
+    `Total a pagar: ${formatMoney(order.totals.total)}`,
     "",
     "Datos para transferencia:",
     `Alias: ${CONFIG.bank.alias}`,
@@ -3059,8 +3035,7 @@ function renderOrderConfirmation(orderId) {
         <div class="notice">
           <div class="notice-title">Para confirmar tu pedido</div>
           <p class="notice-text">
-            Aboná la seña de <strong>${formatMoney(order.totals.deposit)}</strong> por transferencia.
-            Tenés ${escapeHtml(CONFIG.depositHoursLimit)} hs para pagar la seña.
+            Aboná el total de <strong>${formatMoney(order.totals.total)}</strong> por transferencia.
           </p>
         </div>
 
@@ -3110,7 +3085,7 @@ function renderOrderConfirmation(orderId) {
 
       <aside class="panel">
         <h2 class="panel-title">Resumen de compra</h2>
-        <p class="panel-subtitle">Guardamos tu pedido y esperamos la seña.</p>
+        <p class="panel-subtitle">Guardamos tu pedido y esperamos el pago.</p>
         <div class="divider"></div>
         <div class="line">
           <div class="line-title">Subtotal</div>
@@ -3166,7 +3141,7 @@ function renderHowItWorks() {
   return `
     <section class="panel">
       <h1 class="panel-title">Cómo funciona</h1>
-      <p class="panel-subtitle">Simple: elegís, personalizás y confirmás con seña.</p>
+      <p class="panel-subtitle">Simple: elegís, personalizás y confirmás con pago total.</p>
       <div class="divider"></div>
       <div class="stack">
         <div class="notice">
@@ -3185,11 +3160,11 @@ function renderHowItWorks() {
         </div>
         <div class="notice">
           <div class="notice-title">4) Generá el pedido</div>
-          <p class="notice-text">En el checkout te mostramos el total, la seña y los datos para transferir.</p>
+          <p class="notice-text">En el checkout te mostramos el total y los datos para transferir.</p>
         </div>
         <div class="notice">
-          <div class="notice-title">5) Pagá la seña</div>
-          <p class="notice-text">Con la seña confirmás y pasamos a producción.</p>
+          <div class="notice-title">5) Pagá el total</div>
+          <p class="notice-text">Con el pago confirmás y pasamos a producción.</p>
         </div>
       </div>
     </section>
@@ -3208,9 +3183,9 @@ function renderPolicies() {
           <p class="notice-text">Los productos personalizados se validan antes de producir.</p>
         </div>
         <div class="notice">
-          <div class="notice-title">Seña</div>
+          <div class="notice-title">Pago</div>
           <p class="notice-text">
-            La seña confirma el pedido. Si no se abona dentro del plazo, el pedido puede cancelarse.
+            El pago confirma el pedido. Si hace falta, coordinamos el envío/entrega por WhatsApp.
           </p>
         </div>
       </div>
