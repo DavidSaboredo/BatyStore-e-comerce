@@ -13,106 +13,15 @@
   Nota: este MVP no tiene backend; el historial de pedidos vive en el navegador del usuario.
 */
 
-/* ===== Configuración del negocio ===== */
-const CONFIG = {
-  storeName: "BatyStore",
-  currency: "ARS",
-  locale: "es-AR",
-  whatsappNumber: "3442409755",
-  adminKey: "batygstore19931",
-  bank: {
-    alias: "BATYSTORE.ALIAS",
-    cvuCbu: "0000000000000000000000",
-    holder: "BatyStore",
-    cuit: "00-00000000-0",
-  },
-  shipping: {
-    pickupLabel: "Retiro por el local",
-    deliveryLabel: "Envío a domicilio",
-    deliveryFlatRate: 6000,
-  },
-  cloudinary: {
-    cloudName: "dwael1b2u",
-    uploadPreset: "batystore",
-    folder: "batystore",
-  },
-};
-
-/* ===== Catálogo ===== */
-const PRODUCTS = [
-  {
-    id: "remera-basica",
-    name: "Remera personalizada",
-    type: "Remera",
-    basePrice: 18990,
-    description: "Algodón, ideal para estampa en frente o espalda.",
-    sizes: ["S", "M", "L", "XL", "XXL"],
-    colors: ["Negro", "Blanco", "Gris", "Azul", "Rojo"],
-    placements: ["Frente chico", "Frente grande", "Espalda grande"],
-    media: { kind: "video", src: "./remera.mp4" },
-  },
-  {
-    id: "buzo-canguro",
-    name: "Buzo canguro personalizado",
-    type: "Buzo",
-    basePrice: 34990,
-    description: "Abrigo y estilo. Estampa al frente o espalda.",
-    sizes: ["S", "M", "L", "XL", "XXL"],
-    colors: ["Negro", "Gris", "Azul"],
-    placements: ["Frente chico", "Frente grande", "Espalda grande"],
-    media: { kind: "video", src: "./buzo.mp4" },
-  },
-  {
-    id: "gorra-clasica",
-    name: "Gorra personalizada",
-    type: "Gorra",
-    basePrice: 16990,
-    description: "Frente personalizable con texto o diseño.",
-    sizes: ["Único"],
-    colors: ["Negro", "Blanco", "Beige"],
-    placements: ["Frente"],
-    media: { kind: "video", src: "./gorra.mp4" },
-  },
-];
-
-const PERSONALIZATION_PRICING = [
-  { placement: "Frente chico", price: 4500 },
-  { placement: "Frente grande", price: 6900 },
-  { placement: "Espalda grande", price: 7900 },
-  { placement: "Frente", price: 4900 },
-];
-
-const DEFAULT_DESIGNS = [
-  { id: "baty-classic", name: "Baty Classic", price: 2500, productId: "remera-basica", allowedSizes: [1, 2, 3, 4, 5, 6] },
-  { id: "baty-street", name: "Baty Street", price: 3200, productId: "remera-basica", allowedSizes: [1, 2, 3, 4, 5, 6] },
-  { id: "baty-minimal", name: "Baty Minimal", price: 2000, productId: "remera-basica", allowedSizes: [1, 2, 3, 4, 5, 6] },
-];
-
-const MATERIALS = [
-  { id: "peinado", label: "Algodón Peinado", maxSize: 6 },
-  { id: "algodon100", label: "Algodón 100%", maxSize: 10 },
-];
-
-const STAMP_SIZES = [
-  { id: "chico", label: "Chico" },
-  { id: "mediano", label: "Mediano" },
-  { id: "grande", label: "Grande" },
-];
-
-const STAMP_LOCATIONS = [
-  { id: "delantera", label: "Adelante" },
-  { id: "trasera", label: "Atrás" },
-  { id: "nuca", label: "Superior trasera (nuca)" },
-  { id: "pecho-izq", label: "Pecho (izq)" },
-  { id: "pecho-der", label: "Pecho (der)" },
-];
-
-/* ===== Persistencia (localStorage) ===== */
-const STORAGE_KEYS = {
-  cart: "batystore.cart.v1",
-  orders: "batystore.orders.v1",
-  settings: "batystore.settings.v1",
-};
+import {
+  ADMIN_SESSION_KEY,
+  CONFIG,
+  DEFAULT_DESIGNS,
+  MATERIALS,
+  PERSONALIZATION_PRICING,
+  PRODUCTS,
+  STORAGE_KEYS,
+} from "./app-data.js";
 
 const moneyFormatter = new Intl.NumberFormat(CONFIG.locale, {
   style: "currency",
@@ -520,8 +429,8 @@ function render() {
   }
 
   if (parts[0] === "admin") {
-    root.innerHTML = renderAdmin(query);
-    attachAdminHandlers(query);
+    root.innerHTML = renderAdmin();
+    attachAdminHandlers();
     return;
   }
 
@@ -605,6 +514,7 @@ function attachConfigHandlers() {
       delete next.cloudinary;
       delete next.adminKey;
       setSettings(next);
+      setAdminSessionKey("");
       render();
     });
   }
@@ -629,6 +539,7 @@ function attachConfigHandlers() {
     if (adminKey) next.adminKey = adminKey;
     else delete next.adminKey;
     setSettings(next);
+    setAdminSessionKey("");
     navigate("#/");
   });
 }
@@ -649,17 +560,54 @@ function getCloudinaryConfig() {
   return cfg;
 }
 
-function getAdminKey() {
+function getConfiguredAdminKey() {
   const saved = getSettings()?.adminKey;
-  if (typeof saved === "string" && saved.trim()) return saved.trim();
-  const cfgKey = typeof CONFIG.adminKey === "string" ? CONFIG.adminKey.trim() : "";
-  if (cfgKey) return cfgKey;
-  return "batystore-admin";
+  return typeof saved === "string" ? saved.trim() : "";
 }
 
-function renderAdmin(query) {
-  const key = query?.get("key") || "";
-  if (key !== getAdminKey()) {
+function getAdminSessionKey() {
+  try {
+    const raw = sessionStorage.getItem(ADMIN_SESSION_KEY);
+    return typeof raw === "string" ? raw.trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+function setAdminSessionKey(next) {
+  try {
+    const value = typeof next === "string" ? next.trim() : "";
+    if (value) {
+      sessionStorage.setItem(ADMIN_SESSION_KEY, value);
+      return;
+    }
+    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  } catch {}
+}
+
+function isAdminSessionValid() {
+  const configured = getConfiguredAdminKey();
+  const session = getAdminSessionKey();
+  return Boolean(configured && session && configured === session);
+}
+
+function renderAdmin() {
+  const configuredAdminKey = getConfiguredAdminKey();
+  if (!configuredAdminKey) {
+    return `
+      <section class="panel">
+        <h1 class="panel-title">Acceso</h1>
+        <p class="panel-subtitle">Primero configurá la clave admin en Configuración.</p>
+        <div class="divider"></div>
+        <div class="row">
+          <button class="btn" type="button" id="goCatalog">Volver</button>
+          <button class="btn btn-primary" type="button" id="goConfig">Ir a Configuración</button>
+        </div>
+      </section>
+    `;
+  }
+
+  if (!isAdminSessionValid()) {
     return `
       <section class="panel">
         <h1 class="panel-title">Acceso</h1>
@@ -900,6 +848,7 @@ function renderAdmin(query) {
         <div class="field full">
           <div class="row">
             <button class="btn" type="button" id="adminBack">Volver</button>
+            <button class="btn btn-outline" type="button" id="adminLogout">Cerrar sesión</button>
             <button class="btn btn-outline" type="button" id="adminReset">Restaurar</button>
           </div>
         </div>
@@ -916,22 +865,42 @@ function renderAdmin(query) {
   `;
 }
 
-function attachAdminHandlers(query) {
+function attachAdminHandlers() {
   const goCatalog = document.getElementById("goCatalog");
   if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
 
-  const key = query?.get("key") || "";
-  if (key !== getAdminKey()) {
+  const goConfig = document.getElementById("goConfig");
+  if (goConfig) goConfig.addEventListener("click", () => navigate("#/config"));
+
+  if (!isAdminSessionValid()) {
     const loginForm = document.getElementById("adminLoginForm");
     if (loginForm) {
       loginForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const fd = new FormData(loginForm);
         const entered = String(fd.get("adminKey") || "").trim();
+        const configured = getConfiguredAdminKey();
+        if (!configured) {
+          alert("Configurá primero la Admin key en Configuración.");
+          navigate("#/config");
+          return;
+        }
         if (!entered) return;
-        navigate(`#/admin?key=${encodeURIComponent(entered)}`);
+        if (entered !== configured) {
+          alert("Clave inválida.");
+          return;
+        }
+        setAdminSessionKey(entered);
+        render();
       });
     }
+    return;
+  }
+
+  const adminSessionKey = getAdminSessionKey();
+  if (!adminSessionKey) {
+    setAdminSessionKey("");
+    render();
     return;
   }
 
@@ -946,12 +915,20 @@ function attachAdminHandlers(query) {
   const cancelEditDesign = document.getElementById("cancelEditDesign");
   const publishStatus = document.getElementById("publishStatus");
   const testApiBtn = document.getElementById("testApiBtn");
+  const adminLogout = document.getElementById("adminLogout");
   const newDesignProduct = document.getElementById("newDesignProduct");
   const newDesignColor = document.getElementById("newDesignColor");
   const newDesignMaterialField = document.getElementById("newDesignMaterialField");
   const newDesignMaterial = document.getElementById("newDesignMaterial");
   const newDesignFixedSizeField = document.getElementById("newDesignFixedSizeField");
   const newDesignFixedSize = document.getElementById("newDesignFixedSize");
+
+  if (adminLogout) {
+    adminLogout.addEventListener("click", () => {
+      setAdminSessionKey("");
+      render();
+    });
+  }
 
   function parseDesignsFromTextarea() {
     if (!(designsJsonEl instanceof HTMLTextAreaElement)) return [];
@@ -1401,7 +1378,7 @@ function attachAdminHandlers(query) {
         method: "POST",
         headers: {
           "Content-Type": "application/json; charset=utf-8",
-          "x-admin-key": key,
+          "x-admin-key": adminSessionKey,
         },
         body: JSON.stringify({ designs, pricing: next.pricing }),
       });
@@ -1481,7 +1458,7 @@ function renderCatalog(query) {
     <div class="stack">
       <section class="hero">
         <div class="hero-left">
-          <h1 class="hero-title">BatyStore</h1>
+          <h1 class="hero-title">${escapeHtml(CONFIG.storeName)}</h1>
           <p class="hero-subtitle">
             Remeras, buzos y gorras con estampas personalizadas. Elegís, configurás y confirmás con pago total.
           </p>
@@ -1490,8 +1467,8 @@ function renderCatalog(query) {
             <a class="btn btn-outline" href="#/carrito">Ver carrito</a>
           </div>
         </div>
-        <div class="hero-right">
-          <div class="notice">
+        <div class="hero-right hero-right-akira">
+          <div class="notice hero-right-notice">
             <div class="notice-title">Pago total</div>
             <p class="notice-text">
               Confirmás tu pedido abonando el total por transferencia.
@@ -1842,7 +1819,7 @@ function renderDesignOrder(designId) {
         </form>
       </section>
 
-      <aside class="panel">
+      <aside class="panel summary-panel">
         <h2 class="panel-title">Resumen</h2>
         <p class="panel-subtitle">Incluye el precio del diseño.</p>
         <div class="divider"></div>
@@ -2323,7 +2300,7 @@ function renderProduct(productId) {
         </form>
       </section>
 
-      <aside class="panel">
+      <aside class="panel summary-panel">
         <h2 class="panel-title">Resumen</h2>
         <p class="panel-subtitle">Calculamos el total con la personalización elegida.</p>
         <div class="divider"></div>
@@ -2667,7 +2644,7 @@ function renderCart() {
         </div>
       </section>
 
-      <aside class="panel">
+      <aside class="panel summary-panel">
         <h2 class="panel-title">Totales</h2>
         <p class="panel-subtitle">El envío se calcula en el checkout.</p>
         <div class="divider"></div>
@@ -2792,7 +2769,7 @@ function renderCheckout() {
         </form>
       </section>
 
-      <aside class="panel">
+      <aside class="panel summary-panel">
         <h2 class="panel-title">Resumen</h2>
         <p class="panel-subtitle">Calculamos el total del pedido.</p>
         <div class="divider"></div>
@@ -3083,7 +3060,7 @@ function renderOrderConfirmation(orderId) {
         )}</textarea>
       </section>
 
-      <aside class="panel">
+      <aside class="panel summary-panel">
         <h2 class="panel-title">Resumen de compra</h2>
         <p class="panel-subtitle">Guardamos tu pedido y esperamos el pago.</p>
         <div class="divider"></div>
