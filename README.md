@@ -94,6 +94,9 @@ Resultado: estética más distintiva, coherente y con identidad de marca.
 - ✅ Ajustes de scroll al entrar a personalización para llevar al usuario al punto correcto.
 - ✅ Ajustes iterativos de encuadre de fondo y footer para mejorar legibilidad.
 - ✅ Footer anclado al pie para que no “flote” en páginas cortas.
+- ✅ Corrección del resumen en mobile para evitar solapamientos al hacer scroll.
+- ✅ Reordenamiento visual en mobile: contenido principal primero, resumen después.
+- ✅ Entrada a producto y diseño desde la parte superior de la vista, mostrando primero la imagen y el bloque principal.
 
 Resultado: navegación más cómoda y predecible en celulares.
 
@@ -128,6 +131,14 @@ Cómo se resolvió:
 - Se ajustaron media queries en bloques críticos.
 - Se mejoraron alineaciones, spacing y tamaño de targets táctiles.
 - Se revisó el flujo visual entre personalización, resumen y checkout.
+
+### Problema: resumen superpuesto y entrada visual incorrecta en mobile
+
+Cómo se resolvió:
+- Se eliminó el comportamiento sticky del resumen en pantallas chicas.
+- Se dejó el layout apilado en orden natural para evitar solapamientos.
+- Se corrigió la entrada a vistas de producto y diseños para abrir desde arriba de todo.
+- Se priorizó mostrar primero la imagen del producto/diseño antes que el formulario o el resumen.
 
 ---
 

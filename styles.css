@@ -562,6 +562,10 @@ textarea{min-height:90px;resize:vertical}
   .two-col .summary-panel {
     padding:12px;
   }
+  #designMediaAnchor,
+  #productMediaAnchor {
+    scroll-margin-top:86px;
+  }
 }
 
 @media (max-width: 640px){
@@ -571,12 +575,12 @@ textarea{min-height:90px;resize:vertical}
   }
   
   .two-col .summary-panel {
-    order:-1;
-    position:sticky;
-    top:60px;
-    z-index:5;
-    max-height:180px;
-    overflow-y:auto;
+    order:0;
+    position:static;
+    top:auto;
+    z-index:auto;
+    max-height:none;
+    overflow:visible;
   }
   
   .two-col .panel {

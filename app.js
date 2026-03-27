@@ -1764,7 +1764,7 @@ function renderDesignOrder(designId) {
           <button class="btn" type="button" id="backToCatalog">Volver</button>
           <div class="pill">Diseño de la casa</div>
         </div>
-        <div class="design-hero">
+        <div class="design-hero" id="designMediaAnchor">
           ${media}
           <div style="min-width:0">
             <h1 class="panel-title" style="margin:0">${escapeHtml(design.name)}</h1>
@@ -1866,13 +1866,11 @@ function attachDesignOrderHandlers(designId) {
 
   const backBtn = document.getElementById("backToCatalog");
 
-    // Smart scroll to form on mobile entry
-    const designForm = document.getElementById("designOrderForm");
-    if (window.innerWidth < 500 && designForm instanceof HTMLElement) {
-      setTimeout(() => {
-        designForm.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 50);
-    }
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }, 50);
+  }
   if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
 
   const previewBtn = document.getElementById("designPreviewBtn");
@@ -2239,7 +2237,7 @@ function renderProduct(productId) {
           <div class="pill">Personalizable</div>
           <div class="price" id="basePriceTop">${formatMoney(initialBase)}</div>
         </div>
-        <div class="thumb" data-label="${escapeHtml(product.type)}">
+        <div id="productMediaAnchor" class="thumb" data-label="${escapeHtml(product.type)}">
           ${renderThumbMedia(product)}
         </div>
         <h1 class="panel-title">${escapeHtml(product.name)}</h1>
@@ -2398,14 +2396,13 @@ function attachProductHandlers(productId) {
 
   const isRemera = product.type === "Remera";
 
-  function refreshNumericSizes() {
-    // Smart scroll to form on mobile entry
-    if (window.innerWidth < 500 && form instanceof HTMLElement) {
-      setTimeout(() => {
-        form.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 50);
-    }
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }, 50);
+  }
 
+  function refreshNumericSizes() {
     if (!isRemera) return;
     if (!(materialSelect instanceof HTMLSelectElement)) return;
     if (!(sizeSelect instanceof HTMLSelectElement)) return;
