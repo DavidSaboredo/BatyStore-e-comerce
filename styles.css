@@ -28,7 +28,7 @@
   --glass-border:rgba(42,42,51,.65);
   --ease:cubic-bezier(.2,.9,.2,1);
 
-  /* Fondo global (coordenadas visuales del usuario) */
+  /* Fondo global (coordenadas visuales) */
   --bg-left-x:-26%;
   --bg-left-y:50%;
   --bg-right-x:118%;
@@ -38,9 +38,11 @@
 }
 
 *{box-sizing:border-box}
-html{height:100%}
+html,body{height:100%}
 body{
   min-height:100vh;
+  min-height:100svh;
+  min-height:100dvh;
   display:flex;
   flex-direction:column;
   margin:0;
@@ -144,8 +146,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   margin-left:6px;
 }
 
-.site-main{padding:26px 0 64px;flex:1 0 auto}
-.app{min-height:60vh}
+.site-main{padding:26px 0 64px;display:flex;flex-direction:column;flex:1 0 auto}
+.site-main > .container{display:flex;flex-direction:column;flex:1 0 auto}
+.app{min-height:60vh;flex:1 0 auto}
 
 @media (max-width: 560px){
   .header-inner{flex-direction:column;align-items:stretch;gap:10px;padding:12px 0}
@@ -350,7 +353,6 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 
 @media (max-width:640px){
   .design-preview-dialog{padding:10px}
-  .design-preview-title{width:100%}
   .design-preview-tools{width:100%;justify-content:space-between}
   .design-preview-stage{max-height:calc(100vh - 180px)}
 }
@@ -552,6 +554,114 @@ textarea{min-height:90px;resize:vertical}
   background-position:center 32%;
 }
 
+/* Mobile optimizations for personalization & order views */
+@media (max-width: 900px){
+  .two-col .panel {
+    padding:12px;
+  }
+  .two-col .summary-panel {
+    padding:12px;
+  }
+}
+
+@media (max-width: 640px){
+  .two-col {
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+  
+  .two-col .summary-panel {
+    order:-1;
+    position:sticky;
+    top:60px;
+    z-index:5;
+    max-height:180px;
+    overflow-y:auto;
+  }
+  
+  .two-col .panel {
+    padding:10px;
+  }
+  
+  .panel {
+    padding:10px;
+  }
+  
+  .form {
+    gap:10px;
+  }
+  
+  .field {
+    grid-column:span 12;
+  }
+  
+  .panel-title {
+    font-size:18px;
+    margin:0 0 6px;
+  }
+  
+  .panel-subtitle {
+    font-size:12px;
+    margin:0 0 8px;
+  }
+
+  input,select,textarea {
+    min-height:44px;
+    padding:12px;
+    font-size:16px;
+    line-height:1.2;
+  }
+  
+  label {
+    font-size:13px;
+    margin:8px 0 4px;
+  }
+  
+  textarea {
+    min-height:110px;
+  }
+  
+  .hint {
+    font-size:11px;
+  }
+  
+  .divider {
+    margin:10px 0;
+  }
+  
+  .line {
+    padding:8px 0;
+  }
+  
+  .line-title {
+    font-size:12px;
+  }
+  
+  .summary-panel .line {
+    padding:6px 0;
+  }
+  
+  .summary-panel .line-title {
+    font-size:11px;
+  }
+  
+  .summary-panel .mono {
+    font-size:12px;
+  }
+  
+  .notice {
+    padding:8px;
+  }
+  
+  .notice-title {
+    font-size:12px;
+    margin:0 0 4px;
+  }
+  
+  .notice-text {
+    font-size:12px;
+  }
+}
 .hero-right-notice{
   max-width:360px;
   border-color:rgba(242,161,12,.32) !important;
@@ -577,17 +687,79 @@ textarea{min-height:90px;resize:vertical}
 
 .site-footer{
   border-top:1px solid rgba(42,42,51,.7);
-  padding:28px 0 38px;
-  color:#000;
+  margin-top:auto;
+  flex-shrink:0;
+  padding:10px 0 12px;
+  color:#f5f5fa;
   background:url("./imgAkira/akira2.jpeg");
   background-size:cover;
   background-position:center 60%;
   background-repeat:no-repeat;
 }
 .footer-inner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.footer-copy{font-size:12px;line-height:1.35;text-align:left;margin-right:auto}
-.footer-link{color:#000}
-.footer-link:hover{color:#111}
+.footer-copy{font-size:12px;line-height:1.35;text-align:left;margin-right:auto;color:#f8f8ff;text-shadow:0 2px 8px rgba(0,0,0,.55)}
+.footer-link{color:#ffffff;text-shadow:0 2px 8px rgba(0,0,0,.55)}
+.footer-link:hover{color:#ffe2a6}
+
+@media (max-width: 640px){
+  body::before{
+    background:
+      linear-gradient(180deg, rgba(11,11,14,.38), rgba(11,11,14,.22) 42%, rgba(11,11,14,.38)),
+      url("./imgAkira/akira6.jpeg");
+    background-size:cover, cover;
+    background-position:center, center;
+    background-repeat:no-repeat;
+    opacity:.28;
+    animation:mobile-bg-cycle-a 32s step-end infinite, mobile-bg-drift 20s ease-in-out infinite, mobile-bg-soft-fade 8s ease-in-out infinite;
+  }
+
+  body::after{content:none}
+
+  .site-main{padding:18px 0 24px}
+  .site-footer{padding:10px 0 14px;min-height:92px;background-position:center 59%;background-size:120% auto}
+  .site-footer .container{width:min(var(--container), calc(100% - 10px))}
+  .footer-inner{justify-content:flex-start;align-items:flex-start;gap:8px}
+  .footer-copy{font-size:11px;line-height:1.2;margin-right:0;flex:1 1 100%;text-align:left}
+  .footer-link{align-self:flex-start}
+}
+
+@keyframes mobile-bg-cycle-a{
+  0%,24.99%{
+    background-image:
+      linear-gradient(180deg, rgba(11,11,14,.38), rgba(11,11,14,.22) 42%, rgba(11,11,14,.38)),
+      url("./imgAkira/akira6.jpeg");
+  }
+  25%,49.99%{
+    background-image:
+      linear-gradient(180deg, rgba(11,11,14,.38), rgba(11,11,14,.22) 42%, rgba(11,11,14,.38)),
+      url("./imgAkira/akira4.jpeg");
+  }
+  50%,74.99%{
+    background-image:
+      linear-gradient(180deg, rgba(11,11,14,.38), rgba(11,11,14,.22) 42%, rgba(11,11,14,.38)),
+      url("./imgAkira/akira3.jpeg");
+  }
+  75%,100%{
+    background-image:
+      linear-gradient(180deg, rgba(11,11,14,.38), rgba(11,11,14,.22) 42%, rgba(11,11,14,.38)),
+      url("./imgAkira/akira5.jpeg");
+  }
+}
+
+@keyframes mobile-bg-drift{
+  0%,100%{background-position:center, 48% 50%}
+  50%{background-position:center, 52% 50%}
+}
+
+@keyframes mobile-bg-soft-fade{
+  0%,22%{opacity:.30}
+  24%,26%{opacity:.20}
+  28%,47%{opacity:.30}
+  49%,51%{opacity:.20}
+  53%,72%{opacity:.30}
+  74%,76%{opacity:.20}
+  78%,100%{opacity:.30}
+}
 
 .notice{
   border:1px solid rgba(242,161,12,.35);

@@ -1865,6 +1865,14 @@ function attachDesignOrderHandlers(designId) {
   if (!product) return;
 
   const backBtn = document.getElementById("backToCatalog");
+
+    // Smart scroll to form on mobile entry
+    const designForm = document.getElementById("designOrderForm");
+    if (window.innerWidth < 500 && designForm instanceof HTMLElement) {
+      setTimeout(() => {
+        designForm.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
   if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
 
   const previewBtn = document.getElementById("designPreviewBtn");
@@ -2391,6 +2399,13 @@ function attachProductHandlers(productId) {
   const isRemera = product.type === "Remera";
 
   function refreshNumericSizes() {
+    // Smart scroll to form on mobile entry
+    if (window.innerWidth < 500 && form instanceof HTMLElement) {
+      setTimeout(() => {
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
+
     if (!isRemera) return;
     if (!(materialSelect instanceof HTMLSelectElement)) return;
     if (!(sizeSelect instanceof HTMLSelectElement)) return;

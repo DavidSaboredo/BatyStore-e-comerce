@@ -1,4 +1,4 @@
-# 🛍️ BatyStore — E‑commerce MVP con Admin embebido + publicación global (Vercel + Upstash)
+# 🛍️ BatyGeekStore — E‑commerce MVP con Admin embebido + publicación global (Vercel + Upstash)
 
 [![Vercel](https://img.shields.io/badge/Deploy-Vercel-000?logo=vercel&logoColor=white)](https://vercel.com/)
 ![Stack](https://img.shields.io/badge/Stack-HTML%20%7C%20CSS%20%7C%20Vanilla%20JS-0b0b0e)
@@ -51,6 +51,95 @@ Este repo resuelve el problema con una arquitectura mínima:
 
 ---
 
+## 🆕 Novedades de esta iteración (Marzo 2026)
+
+Esta versión cierra una etapa completa de mejoras funcionales, seguridad y diseño visual.
+
+### 1) Endurecimiento del backend (Fase 2)
+
+- ✅ Validación estricta de payload en API de publicación.
+- ✅ Límite de tamaño de body (1 MB) para evitar cargas excesivas.
+- ✅ Límite de cantidad de diseños publicados (máximo 200).
+- ✅ Sanitización de diseños y precios antes de guardar o devolver datos.
+- ✅ Respuestas HTTP claras por tipo de error:
+  - 400 para datos inválidos
+  - 413 para payload demasiado grande
+
+Resultado: publicación más segura y estable, con menor riesgo de datos corruptos.
+
+### 2) Modularización y seguridad de admin (Fase 3)
+
+- ✅ Se extrajeron constantes y datos del catálogo a un módulo dedicado.
+- ✅ Se centralizó configuración en una sola fuente de verdad.
+- ✅ El acceso admin dejó de depender de parámetros en URL.
+- ✅ Se migró sesión admin a sessionStorage.
+- ✅ Se eliminó fallback inseguro de clave en código.
+
+Resultado: código más mantenible y modelo de acceso admin más seguro.
+
+### 3) Refresh visual y branding
+
+- ✅ Rebranding completo de BatyStore a BatyGeekStore.
+- ✅ Fondo global artístico con imágenes Akira y transiciones suaves.
+- ✅ Hero visual renovado con mejor contraste.
+- ✅ Panels de resumen personalizados con alto impacto visual.
+- ✅ Footer temático ajustado para desktop y mobile.
+
+Resultado: estética más distintiva, coherente y con identidad de marca.
+
+### 4) Ajustes responsive y experiencia mobile
+
+- ✅ Correcciones de layout para evitar contenido amontonado.
+- ✅ Mejoras de formularios en pantallas chicas (campos más usables al tacto).
+- ✅ Ajustes de scroll al entrar a personalización para llevar al usuario al punto correcto.
+- ✅ Ajustes iterativos de encuadre de fondo y footer para mejorar legibilidad.
+- ✅ Footer anclado al pie para que no “flote” en páginas cortas.
+
+Resultado: navegación más cómoda y predecible en celulares.
+
+---
+
+## 🧪 Problemas reales y cómo los resolvimos
+
+### Problema: publicación con riesgo de datos inválidos
+
+Cómo se resolvió:
+- Se incorporaron funciones de sanitización por dominio (diseños, pricing, shipping).
+- Se forzaron tipos y rangos válidos para cada campo.
+- Se aplicaron límites de tamaño y cantidad.
+
+### Problema: acceso admin expuesto o frágil
+
+Cómo se resolvió:
+- Se separó la clave real de entorno en Vercel.
+- Se validó sesión local contra la clave configurada en el navegador.
+- Se eliminó el uso de query params para autenticación.
+
+### Problema: contraste y legibilidad sobre fondos artísticos
+
+Cómo se resolvió:
+- Se reforzó contraste con overlays y sombras de texto.
+- Se hicieron ajustes finos por breakpoint.
+- Se calibró el footer para que imagen y texto convivan sin perder lectura.
+
+### Problema: saltos incómodos en mobile
+
+Cómo se resolvió:
+- Se ajustaron media queries en bloques críticos.
+- Se mejoraron alineaciones, spacing y tamaño de targets táctiles.
+- Se revisó el flujo visual entre personalización, resumen y checkout.
+
+---
+
+## 📦 Estado actual del proyecto
+
+- ✅ Listo para deploy automático en Vercel desde GitHub.
+- ✅ API preparada para publicar y leer estado global de tienda.
+- ✅ UI web y mobile ajustada con foco en legibilidad y branding.
+- ✅ Estructura modular preparada para próximas iteraciones.
+
+---
+
 ## 🎥 Demo y capturas
 
 - Demo (Vercel): `https://TU_DOMINIO`  
@@ -78,8 +167,9 @@ Tip: guardá las imágenes en `docs/` y linkealas así:
   - `index.html`: shell (header/nav) + `<div id="app">`
   - `styles.css`: tema y componentes
   - `app.js`: lógica completa (router, vistas, handlers, carrito, checkout, admin)
+  - `app-data.js`: configuración centralizada, catálogo, pricing base y constantes
 - **Backend (Vercel Function)**
-  - `api/store.js`: lectura/escritura global a Upstash Redis REST
+  - `api/store.js`: lectura/escritura global a Upstash Redis REST con validación y sanitización de payload
 
 ### Diagrama (alto nivel)
 
