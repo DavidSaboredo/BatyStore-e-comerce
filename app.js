@@ -145,6 +145,17 @@ function escapeHtml(text) {
     .replaceAll("'", "&#039;");
 }
 
+// Pide a Cloudinary una versión liviana (formato/calidad automáticos y ancho máximo)
+// en lugar del archivo original, que puede pesar varios MB.
+function cloudinaryOptimized(url, width) {
+  const src = String(url || "");
+  const match = src.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)([^/]+)\/(.+)$/);
+  if (!match) return src;
+  const isTransform = /^[a-z]{1,3}_[^/,]+(,[a-z]{1,3}_[^/,]+)*$/.test(match[2]);
+  if (isTransform) return src;
+  return `${match[1]}f_auto,q_auto,c_limit,w_${width}/${match[2]}/${match[3]}`;
+}
+
 function guessVideoType(src) {
   const ext = src.split("?")[0].split("#")[0].split(".").pop()?.toLowerCase();
   if (ext === "mp4") return "video/mp4";
@@ -1439,7 +1450,7 @@ function renderCatalog(query) {
     .map((d) => {
       const img = typeof d?.imageUrl === "string" ? d.imageUrl.trim() : "";
       const media = img
-        ? `<img class="design-card-img" src="${escapeHtml(img)}" alt="${escapeHtml(d.name)}" loading="lazy" />`
+        ? `<img class="design-card-img" src="${escapeHtml(cloudinaryOptimized(img, 600))}" alt="${escapeHtml(d.name)}" loading="lazy" />`
         : `<div class="design-card-img placeholder"></div>`;
       const price = designPriceFor(d);
       return `
@@ -1749,7 +1760,7 @@ function renderDesignOrder(designId) {
   const img = typeof design.imageUrl === "string" ? design.imageUrl.trim() : "";
   const media = img
     ? `<button class="design-preview-btn" type="button" id="designPreviewBtn" aria-label="Ver diseño en grande">
-         <img class="design-hero-img" src="${escapeHtml(img)}" alt="${escapeHtml(design.name)}" />
+         <img class="design-hero-img" src="${escapeHtml(cloudinaryOptimized(img, 1000))}" alt="${escapeHtml(design.name)}" />
        </button>`
     : `<div class="design-hero-img placeholder"></div>`;
 
@@ -1914,7 +1925,7 @@ function attachDesignOrderHandlers(designId) {
             </div>
           </div>
           <div class="design-preview-stage" aria-label="Vista previa ampliable">
-            <img class="design-preview-img" src="${escapeHtml(url)}" alt="${escapeHtml(title)}" draggable="false" />
+            <img class="design-preview-img" src="${escapeHtml(cloudinaryOptimized(url, 1600))}" alt="${escapeHtml(title)}" draggable="false" />
           </div>
         </div>
       `;
