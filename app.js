@@ -3164,7 +3164,7 @@ function renderPolicies() {
   return `
     <section class="panel">
       <h1 class="panel-title">Políticas</h1>
-      <p class="panel-subtitle">Versión MVP. Ajustamos estos textos según tu operación.</p>
+      <p class="panel-subtitle">Cómo trabajamos los pedidos personalizados.</p>
       <div class="divider"></div>
       <div class="stack">
         <div class="notice">
