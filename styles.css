@@ -271,6 +271,8 @@ input,textarea{caret-color:var(--primary)}
 .product-card:hover{border-color:var(--primary)}
 .product-card-media{display:block;aspect-ratio:4/3;overflow:hidden;background:#000}
 .thumb-media{display:block;width:100%;height:100%;object-fit:cover}
+/* Los videos de producto traen una marca de agua arriba a la derecha: se recorta la franja superior */
+.product-card-media video.thumb-media{transform:scale(1.2);transform-origin:50% 100%}
 .product-card-body{display:flex;flex-direction:column;flex:1;gap:6px;padding:20px}
 .product-card-name{font-size:28px;font-stretch:75%;font-weight:800;line-height:1;text-transform:uppercase}
 .product-card-desc{font-size:16px;color:var(--muted)}
@@ -593,6 +595,7 @@ legend.form-section-title + *{clear:both}
   .pdp-media{position:static}
   .design-hero-img{max-height:70svh}
   .product-media{aspect-ratio:4/3}
+  .product-media video.thumb-media{transform:scale(1.2);transform-origin:50% 100%}
   .checkout-layout{grid-template-columns:1fr}
   .summary{position:static}
 }
