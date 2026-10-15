@@ -65,6 +65,17 @@ body{
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
 }
+/* Fondo: dos fotos de Akira a los costados, apagadas y fundidas con el negro.
+   En pantallas angostas pasa a una sola foto que va cambiando (ver Responsive). */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    linear-gradient(90deg, rgba(11,11,14,.58) 0%, var(--bg) 26%, var(--bg) 74%, rgba(11,11,14,.58) 100%),
+    url("./imgAkira/akira4.jpeg") calc(11vw - 58vh) 50% / auto 100% no-repeat,
+    url("./imgAkira/akira3.jpeg") calc(89vw - 44vh) 50% / auto 100% no-repeat,
+    var(--bg);
+  opacity:.52;
+}
 body.is-admin{
   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,Helvetica,sans-serif;
   font-weight:400;
@@ -138,20 +149,26 @@ input,textarea{caret-color:var(--primary)}
 .cart-count[data-empty]{background:var(--surface-3);color:var(--text-soft)}
 
 /* ===== Contenido ===== */
-.site-main{display:flex;flex-direction:column;flex:1 0 auto;padding:40px 0 96px}
+.site-main{display:flex;flex-direction:column;flex:1 0 auto;padding:40px 0 96px;overflow-x:clip}
 .site-main > .container{display:flex;flex-direction:column;flex:1 0 auto}
 .app{flex:1 0 auto}
 .app:focus{outline:none}
 .app-loading{padding:96px 0;text-align:center;color:var(--muted)}
 
 /* ===== Pie ===== */
-.site-footer{background:var(--bg-footer);border-top:1px solid var(--border)}
+.site-footer{
+  border-top:1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(11,11,14,.86) 0%, rgba(11,11,14,.74) 50%, rgba(11,11,14,.9) 100%),
+    url("./imgAkira/akira2.jpeg") center 58% / cover no-repeat,
+    var(--bg-footer);
+}
 .site-footer p{margin:0}
 .footer-inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px 40px;padding:40px 0 28px}
 .footer-brand{display:flex;align-items:center;gap:14px}
 .footer-brand img{width:40px;height:40px;border-radius:10px;object-fit:cover}
 .footer-name{font-size:21px;font-stretch:75%;font-weight:800;line-height:1.1;text-transform:uppercase}
-.footer-text{margin-top:2px;font-size:15px;color:var(--muted)}
+.footer-text{margin-top:2px;font-size:15px;color:var(--text-soft)}
 .footer-nav{display:flex;flex-wrap:wrap;gap:0 4px;margin-inline:-10px}
 .footer-nav a{
   display:inline-flex;align-items:center;min-height:44px;padding:0 10px;
@@ -234,7 +251,27 @@ input,textarea{caret-color:var(--primary)}
 .hero-facts li{display:flex;align-items:center;gap:8px}
 .hero-facts .icon{color:var(--primary)}
 .hero-art{position:relative;margin:0 14px 14px 0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:14px 14px 0 var(--primary)}
-.hero-art img{display:block;width:100%;height:min(600px, calc(100svh - 180px));min-height:440px;object-fit:cover;object-position:50% 30%}
+.hero-art img{display:block;width:100%;height:min(640px, calc(100svh - 160px));min-height:480px;object-fit:cover;object-position:50% 30%;transform-origin:50% 45%}
+.hero-note{
+  position:absolute;inset:auto 0 0 0;z-index:1;padding:96px 26px 24px;
+  background:linear-gradient(180deg, rgba(11,11,14,0), rgba(11,11,14,.82) 46%, rgba(11,11,14,.95));
+}
+.hero-note-title{font-size:30px;font-stretch:75%;font-weight:850;line-height:1;text-transform:uppercase;color:var(--primary)}
+.hero-note-text{max-width:42ch;margin-top:8px;font-size:16px;line-height:1.45;color:var(--text-soft)}
+
+/* Cinta que corre entre la portada y los diseños */
+.ticker{position:relative;left:50%;width:100vw;margin:88px 0 0 -50vw;padding:20px 0;overflow:hidden;pointer-events:none}
+.ticker-band{width:106%;margin-left:-3%;transform:rotate(-1.6deg);background:var(--primary);color:var(--on-primary)}
+.ticker-track{display:flex;width:max-content}
+.ticker-item{
+  display:flex;align-items:center;gap:30px;padding:14px 0 14px 30px;
+  font-size:clamp(24px,2.8vw,34px);font-stretch:75%;font-weight:850;line-height:1;text-transform:uppercase;white-space:nowrap;
+}
+.ticker-star{width:.62em;height:.62em;flex:none}
+.ticker + .section{padding-top:72px}
+@supports not (overflow:clip){
+  .ticker{left:auto;width:auto;margin-left:0}
+}
 
 /* ===== Inicio: diseños de la casa ===== */
 .chips{display:flex;gap:8px;margin:-4px -4px 20px;padding:4px 4px 8px;overflow-x:auto;scrollbar-width:none}
@@ -248,17 +285,23 @@ input,textarea{caret-color:var(--primary)}
 .chip-btn:hover{border-color:var(--text-soft);color:var(--text)}
 .chip-btn[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--bg)}
 
-.design-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:28px 20px}
+.design-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:40px 28px}
 .design-card{display:flex;flex-direction:column;gap:12px;color:inherit;text-decoration:none}
 .design-card:focus-visible{outline:none}
 .design-card:focus-visible .design-card-media{outline:2px solid var(--primary);outline-offset:3px}
-.design-card-media{display:block;aspect-ratio:1/1;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
-.design-card-media img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .45s var(--ease)}
-.design-card:hover .design-card-media img{transform:scale(1.04)}
+.design-card-media{
+  display:block;aspect-ratio:1/1;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface);
+  transition:transform .3s var(--ease),box-shadow .3s var(--ease),border-color .3s var(--ease);
+}
+.design-card-media img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .5s var(--ease)}
+@media (hover:hover){
+  .design-card:hover .design-card-media{transform:translate(-5px,-5px);border-color:var(--primary);box-shadow:10px 10px 0 var(--primary)}
+  .design-card:hover .design-card-media img{transform:scale(1.05)}
+}
 .design-card-body{display:flex;flex-direction:column;gap:2px}
-.design-card-name{font-size:17px;font-weight:700;line-height:1.3;transition:color .18s var(--ease)}
+.design-card-name{font-size:19px;font-weight:700;line-height:1.3;transition:color .18s var(--ease)}
 .design-card:hover .design-card-name{color:var(--primary)}
-.design-card-price{font-size:16px;color:var(--text-soft);font-variant-numeric:tabular-nums}
+.design-card-price{font-size:17px;color:var(--text-soft);font-variant-numeric:tabular-nums}
 .media-empty{display:grid;place-items:center;width:100%;height:100%;background:var(--surface);color:var(--muted)}
 
 /* ===== Inicio: personalizar ===== */
@@ -266,9 +309,12 @@ input,textarea{caret-color:var(--primary)}
 .product-card{
   display:flex;flex-direction:column;overflow:hidden;
   border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
-  color:inherit;text-decoration:none;transition:border-color .2s var(--ease);
+  color:inherit;text-decoration:none;transition:border-color .2s var(--ease),transform .3s var(--ease),box-shadow .3s var(--ease);
 }
 .product-card:hover{border-color:var(--primary)}
+@media (hover:hover){
+  .product-card:hover{transform:translate(-5px,-5px);box-shadow:10px 10px 0 var(--primary)}
+}
 .product-card-media{display:block;aspect-ratio:4/3;overflow:hidden;background:#000}
 .thumb-media{display:block;width:100%;height:100%;object-fit:cover}
 /* Los videos de producto traen una marca de agua arriba a la derecha: se recorta la franja superior */
@@ -303,7 +349,15 @@ input,textarea{caret-color:var(--primary)}
 .pdp{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:56px;align-items:start}
 .pdp-media{position:sticky;top:calc(var(--header-h) + 24px)}
 .design-preview-btn{position:relative;display:block;width:100%;padding:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface);cursor:zoom-in}
-.design-hero-img{display:block;width:100%;height:auto;max-height:calc(100svh - 140px);object-fit:contain}
+.pdp-design{grid-template-columns:minmax(0,1.3fr) minmax(320px,.8fr);gap:48px}
+.design-hero-frame{display:block;overflow:hidden}
+.design-hero-img{display:block;width:100%;height:auto;max-height:calc(100svh - 140px);object-fit:contain;transition:transform .25s var(--ease)}
+.design-preview-btn.is-magnified .design-hero-img{transform:scale(2.2)}
+.hint-mouse{display:none}
+@media (hover:hover) and (pointer:fine){
+  .hint-touch{display:none}
+  .hint-mouse{display:inline}
+}
 .design-hero-img.media-empty{aspect-ratio:1/1;height:auto;border:1px solid var(--border);border-radius:var(--radius)}
 .zoom-hint{
   display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:10px 16px;
@@ -463,7 +517,11 @@ legend.label + *{clear:both}
 /* Resumen lateral */
 .summary{
   position:sticky;top:calc(var(--header-h) + 24px);display:flex;flex-direction:column;gap:12px;
-  padding:24px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+  padding:24px;border:1px solid var(--border);border-radius:var(--radius);
+  background:
+    linear-gradient(170deg, rgba(20,20,26,.9), rgba(20,20,26,.86)),
+    url("./imgAkira/akira1.jpeg") 70% 25% / cover no-repeat,
+    var(--surface);
 }
 .summary-title{font-size:21px;font-weight:800;line-height:1.2}
 .summary-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px}
@@ -584,13 +642,23 @@ legend.form-section-title + *{clear:both}
 /* ===== Responsive ===== */
 @media (max-width:1024px){
   .pdp{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+  .pdp-design{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr)}
   .checkout-layout{grid-template-columns:minmax(0,1fr) 340px;gap:24px}
 }
 
 @media (max-width:900px){
+  /* Una sola foto de fondo, más apagada, detrás de todo */
+  body::before{
+    inset:-4%;
+    background-image:linear-gradient(180deg, rgba(11,11,14,.5), rgba(11,11,14,.32) 42%, rgba(11,11,14,.5)),url("./imgAkira/akira6.jpeg");
+    background-position:center,center 30%;
+    background-size:cover,cover;
+    background-repeat:no-repeat;
+    opacity:.2;
+  }
   .hero{grid-template-columns:1fr;gap:40px}
   .hero-art{margin:0 10px 10px 0;box-shadow:10px 10px 0 var(--primary)}
-  .hero-art img{height:auto;min-height:0;aspect-ratio:5/4}
+  .hero-art img{height:auto;min-height:0;aspect-ratio:1/1;object-position:50% 40%}
   .pdp{grid-template-columns:1fr;gap:28px}
   .pdp-media{position:static}
   .design-hero-img{max-height:70svh}
@@ -608,12 +676,20 @@ legend.form-section-title + *{clear:both}
   .brand-tagline,.nav-link-designs{display:none}
   .site-main{padding:28px 0 72px}
   .section{padding-top:80px}
+  .ticker{margin-top:64px}
+  .ticker + .section{padding-top:56px}
   .steps{grid-template-columns:1fr;gap:20px}
   .steps .step-num{font-size:40px}
   .field-grid{grid-template-columns:1fr}
   .form-section{padding:20px}
   .confirm-step{padding:20px}
   .footer-inner{flex-direction:column;align-items:flex-start}
+  .site-footer{
+    background:
+      linear-gradient(180deg, rgba(11,11,14,.9) 0%, rgba(11,11,14,.84) 50%, rgba(11,11,14,.93) 100%),
+      url("./imgAkira/akira2.jpeg") center 58% / cover no-repeat,
+      var(--bg-footer);
+  }
 }
 
 @media (max-width:560px){
@@ -622,9 +698,13 @@ legend.form-section-title + *{clear:both}
   .hero-lead{font-size:18px}
   .hero-actions .btn{flex:1 1 auto}
   .hero-facts{flex-direction:column;gap:10px}
-  .design-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 12px}
-  .design-card-name{font-size:16px}
-  .design-card-price{font-size:15px}
+  .hero-art img{aspect-ratio:2/3;object-position:50% 30%}
+  .hero-note{padding:80px 18px 18px}
+  .hero-note-title{font-size:25px}
+  .hero-note-text{font-size:15.5px}
+  .design-grid{grid-template-columns:1fr;gap:36px}
+  .design-card-name{font-size:18px}
+  .design-card-price{font-size:16px}
   .product-grid{grid-template-columns:1fr}
   .pdp-price{font-size:30px}
   .cart-item{grid-template-columns:84px minmax(0,1fr);gap:14px;padding:14px}
@@ -650,6 +730,64 @@ legend.form-section-title + *{clear:both}
   .design-preview-dialog{width:100%;height:100vh;height:100dvh;border:0;border-radius:0}
   .design-preview-topbar{padding-left:16px}
   .design-preview-tools{gap:6px}
+}
+
+/* ===== Movimiento =====
+   Todo lo que se mueve vive acá: quien pide menos movimiento en su equipo ve la página quieta. */
+@keyframes rise{from{opacity:0;transform:translateY(18px)}}
+@keyframes stamp{
+  0%{opacity:0;transform:scale(1.35) rotate(-3deg)}
+  60%{opacity:1;transform:scale(.97) rotate(.4deg)}
+  100%{opacity:1;transform:none}
+}
+@keyframes print-wipe{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}
+@keyframes print-shadow{from{transform:translate(7px,7px);box-shadow:0 0 0 var(--primary)}}
+@keyframes squeegee{from{top:-10px}to{top:calc(100% - 10px)}}
+@keyframes fade-away{to{opacity:0}}
+@keyframes slow-zoom{to{transform:scale(1.07)}}
+@keyframes pop-in{from{opacity:0;transform:translateY(12px) scale(.96)}}
+@keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.4)}100%{transform:scale(1)}}
+@keyframes page-in{from{opacity:0;transform:translateY(8px)}}
+@keyframes ticker{to{transform:translateX(-33.333%)}}
+@keyframes bg-cycle{
+  0%{background-image:linear-gradient(180deg, rgba(11,11,14,.5), rgba(11,11,14,.32) 42%, rgba(11,11,14,.5)),url("./imgAkira/akira6.jpeg")}
+  25%{background-image:linear-gradient(180deg, rgba(11,11,14,.5), rgba(11,11,14,.32) 42%, rgba(11,11,14,.5)),url("./imgAkira/akira4.jpeg")}
+  50%{background-image:linear-gradient(180deg, rgba(11,11,14,.5), rgba(11,11,14,.32) 42%, rgba(11,11,14,.5)),url("./imgAkira/akira3.jpeg")}
+  75%{background-image:linear-gradient(180deg, rgba(11,11,14,.5), rgba(11,11,14,.32) 42%, rgba(11,11,14,.5)),url("./imgAkira/akira5.jpeg")}
+}
+@keyframes bg-fade{0%,100%{opacity:.1}14%,86%{opacity:.2}}
+@keyframes bg-drift{from{transform:translate3d(-2%,0,0)}to{transform:translate3d(2%,-1.5%,0)}}
+
+@media (prefers-reduced-motion:no-preference){
+  /* Portada: el título sube, "a tu manera" cae como un sello */
+  .hero-title{animation:rise .7s var(--ease) backwards}
+  .hero-accent{animation:stamp .55s cubic-bezier(.16,1,.3,1) .35s backwards;transform-origin:0 60%}
+  .hero-lead{animation:rise .7s var(--ease) .5s backwards}
+  .hero-actions{animation:rise .7s var(--ease) .6s backwards}
+  .hero-facts{animation:rise .7s var(--ease) .7s backwards}
+
+  /* La foto aparece como una estampa: la racleta baja y deja la imagen impresa */
+  .hero-art{animation:print-wipe 1s var(--ease) .15s backwards,print-shadow .5s var(--ease) 1.15s backwards}
+  .hero-art::after{
+    content:"";position:absolute;left:0;right:0;top:calc(100% - 10px);z-index:3;height:10px;
+    background:var(--primary);pointer-events:none;
+    animation:squeegee 1s var(--ease) .15s backwards,fade-away .3s var(--ease) 1.15s forwards;
+  }
+  .hero-art img{animation:slow-zoom 24s ease-in-out 1.2s infinite alternate}
+  .hero-note{animation:rise .7s var(--ease) 1.1s backwards}
+
+  /* Secciones y tarjetas entran al aparecer en pantalla */
+  .reveal-on .reveal:not(.is-in){opacity:0}
+  .reveal-on .reveal.is-in{animation:rise .7s var(--ease) var(--d,0ms) backwards}
+  .design-card.is-popped,.reveal-on .design-card.is-popped{animation:pop-in .45s var(--ease) var(--d,0ms) backwards}
+
+  .cart-count.is-bumped{animation:bump .5s cubic-bezier(.16,1,.3,1)}
+  .app.is-entering{animation:page-in .35s var(--ease)}
+  .ticker-track{animation:ticker 38s linear infinite}
+}
+
+@media (prefers-reduced-motion:no-preference) and (max-width:900px){
+  body::before{animation:bg-cycle 32s step-end infinite,bg-fade 8s ease-in-out infinite,bg-drift 20s ease-in-out infinite alternate}
 }
 
 @media (prefers-reduced-motion:reduce){

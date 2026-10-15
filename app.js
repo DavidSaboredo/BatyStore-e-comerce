@@ -515,12 +515,17 @@ function computeCartTotals(cart, checkout) {
   return { itemsSubtotal, shippingCost, total };
 }
 
+let lastCartCount = null;
+
 function updateCartCount() {
   const el = document.getElementById("cartCount");
   if (!el) return;
   const count = getCart().reduce((sum, item) => sum + (item.quantity ?? 0), 0);
   el.textContent = String(count);
   el.toggleAttribute("data-empty", count === 0);
+  // Saltito del contador cuando se suma algo al carrito
+  if (lastCartCount !== null && count > lastCartCount) replayClass(el, "is-bumped");
+  lastCartCount = count;
   const link = el.closest("a");
   if (link) link.setAttribute("aria-label", count ? `Carrito, ${count} ${count === 1 ? "producto" : "productos"}` : "Carrito vacío");
 }
@@ -541,6 +546,44 @@ function parseRoute() {
 /* ===== Videos en miniaturas (catálogo / producto) ===== */
 let thumbVideoObserver = null;
 let thumbVisibilityHandler = null;
+
+// Vuelve a disparar una animación de CSS sacando y poniendo la clase
+function replayClass(el, cls) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+
+// Las tarjetas y secciones aparecen suavemente al llegar a ellas con el scroll
+let revealObserver = null;
+
+function setupReveal(root) {
+  if (revealObserver) {
+    revealObserver.disconnect();
+    revealObserver = null;
+  }
+  const items = Array.from(root.querySelectorAll(".reveal"));
+  const canAnimate = items.length > 0 && "IntersectionObserver" in window && !prefersReducedMotion();
+  root.classList.toggle("reveal-on", canAnimate);
+  if (!canAnimate) return;
+
+  revealObserver = new IntersectionObserver(
+    (entries) => {
+      let k = 0;
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const el = entry.target;
+        // Las que entran juntas aparecen escalonadas
+        if (el instanceof HTMLElement) el.style.setProperty("--d", `${Math.min(k, 5) * 80}ms`);
+        el.classList.add("is-in");
+        revealObserver?.unobserve(el);
+        k += 1;
+      }
+    },
+    { rootMargin: "0px 0px -8% 0px", threshold: 0.12 },
+  );
+  items.forEach((el) => revealObserver.observe(el));
+}
 
 function prefersReducedMotion() {
   return typeof window.matchMedia === "function"
@@ -674,6 +717,8 @@ function render() {
   }
 
   setupThumbVideos(root);
+  setupReveal(root);
+  if (routeChanged) replayClass(root, "is-entering");
   setActiveNav(nav);
   document.title = title
     ? `${title} · ${CONFIG.storeName}`
@@ -752,10 +797,10 @@ function renderCatalog() {
     .map((d) => {
       const img = typeof d.imageUrl === "string" ? d.imageUrl.trim() : "";
       const media = img
-        ? `<img src="${escapeHtml(cloudinaryOptimized(img, 600))}" alt="" loading="lazy" decoding="async" />`
+        ? `<img src="${escapeHtml(cloudinaryOptimized(img, 900))}" srcset="${escapeHtml(cloudinaryOptimized(img, 500))} 500w, ${escapeHtml(cloudinaryOptimized(img, 900))} 900w" sizes="(max-width: 560px) 92vw, (max-width: 1024px) 46vw, 360px" alt="" loading="lazy" decoding="async" />`
         : `<span class="media-empty">${icon("bag", "icon icon-lg")}</span>`;
       return `
-        <a class="design-card" href="#/diseno/${encodeURIComponent(d.id)}" data-series="${escapeHtml(designSeries(d.name))}">
+        <a class="design-card reveal" href="#/diseno/${encodeURIComponent(d.id)}" data-series="${escapeHtml(designSeries(d.name))}">
           <span class="design-card-media">${media}</span>
           <span class="design-card-body">
             <span class="design-card-name">${escapeHtml(d.name)}</span>
@@ -768,7 +813,7 @@ function renderCatalog() {
   const productsHtml = PRODUCTS.map((p) => {
     const from = productFromPrice(p);
     return `
-      <a class="product-card" href="#/producto/${encodeURIComponent(p.id)}">
+      <a class="product-card reveal" href="#/producto/${encodeURIComponent(p.id)}">
         <span class="product-card-media">${renderThumbMedia(p)}</span>
         <span class="product-card-body">
           <span class="product-card-name">${escapeHtml(p.name)}</span>
@@ -796,13 +841,19 @@ function renderCatalog() {
           <li>${icon("truck")}Retiro o envío a domicilio</li>
         </ul>
       </div>
-      <figure class="hero-art">
+      <div class="hero-art">
         <img src="./imgAkira/akira7.jpeg" width="1330" height="1600" alt="Remera de Akira junto a la moto de Kaneda" fetchpriority="high" decoding="async" />
-      </figure>
+        <div class="hero-note">
+          <p class="hero-note-title">Pago total</p>
+          <p class="hero-note-text">Confirmás tu pedido abonando el total por transferencia. Te mostramos el CVU/CBU al finalizar y podés enviar el mensaje por WhatsApp.</p>
+        </div>
+      </div>
     </section>
 
+    ${renderTicker()}
+
     <section class="section" id="disenos" aria-labelledby="disenosTitle">
-      <div class="section-head">
+      <div class="section-head reveal">
         <div>
           <h2 class="section-title" id="disenosTitle">Diseños de la casa</h2>
           <p class="section-sub">Elegí un diseño y pasá directo al pedido.</p>
@@ -821,7 +872,7 @@ function renderCatalog() {
     </section>
 
     <section class="section" id="personalizar" aria-labelledby="personalizarTitle">
-      <div class="section-head">
+      <div class="section-head reveal">
         <div>
           <h2 class="section-title" id="personalizarTitle">Personalizá tu prenda</h2>
           <p class="section-sub">Elegí la prenda y sumale tu texto o tu imagen.</p>
@@ -831,17 +882,17 @@ function renderCatalog() {
     </section>
 
     <section class="section how-strip" aria-labelledby="comoTitle">
-      <h2 class="section-title" id="comoTitle">Cómo comprar</h2>
+      <h2 class="section-title reveal" id="comoTitle">Cómo comprar</h2>
       <ol class="steps">
-        <li class="step">
+        <li class="step reveal">
           <span class="step-num">1</span>
           <div><h3 class="step-title">Elegí</h3><p class="step-text">Un diseño de la casa o la prenda que querés personalizar.</p></div>
         </li>
-        <li class="step">
+        <li class="step reveal">
           <span class="step-num">2</span>
           <div><h3 class="step-title">Generá el pedido</h3><p class="step-text">Completás tus datos y te mostramos el total.</p></div>
         </li>
-        <li class="step">
+        <li class="step reveal">
           <span class="step-num">3</span>
           <div><h3 class="step-title">Pagá y listo</h3><p class="step-text">Transferís, nos mandás el comprobante por WhatsApp y pasamos a producción.</p></div>
         </li>
@@ -849,6 +900,17 @@ function renderCatalog() {
       <a class="link-arrow" href="#/como-funciona">Ver cómo funciona ${icon("arrowRight")}</a>
     </section>
   `;
+}
+
+// Cinta que corre entre la portada y los diseños (decorativa)
+function renderTicker() {
+  const words = ["Remeras", "Buzos", "Gorras", "Estampado a pedido", "Diseños de la casa", "Tu texto o tu imagen"];
+  const star = `<svg class="ticker-star" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z" fill="currentColor"/></svg>`;
+  const run = words.map((w) => `<span class="ticker-item">${w}${star}</span>`).join("");
+  return `
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-band"><div class="ticker-track">${run}${run}${run}</div></div>
+    </div>`;
 }
 
 function attachCatalogHandlers() {
@@ -864,7 +926,13 @@ function attachCatalogHandlers() {
       cards.forEach((card) => {
         const show = !series || card.getAttribute("data-series") === series;
         card.hidden = !show;
-        if (show) visible += 1;
+        if (!show) return;
+        // Las que quedan entran de a una, como recién estampadas
+        revealObserver?.unobserve(card);
+        card.classList.add("is-in");
+        card.style.setProperty("--d", `${Math.min(visible, 8) * 50}ms`);
+        replayClass(card, "is-popped");
+        visible += 1;
       });
       if (countEl) countEl.textContent = designCountText(visible);
     });
@@ -925,8 +993,10 @@ function renderDesignOrder(designId) {
 
   const media = image
     ? `<button class="design-preview-btn" type="button" id="designPreviewBtn" aria-label="Ver ${escapeHtml(name)} en grande">
-         <img class="design-hero-img" src="${escapeHtml(cloudinaryOptimized(image, 1000))}" alt="${escapeHtml(name)}" decoding="async" />
-         <span class="zoom-hint">${icon("expand")}Ver en grande</span>
+         <span class="design-hero-frame">
+           <img class="design-hero-img" src="${escapeHtml(cloudinaryOptimized(image, 1400))}" srcset="${escapeHtml(cloudinaryOptimized(image, 800))} 800w, ${escapeHtml(cloudinaryOptimized(image, 1400))} 1400w" sizes="(max-width: 900px) 100vw, 680px" alt="${escapeHtml(name)}" decoding="async" />
+         </span>
+         <span class="zoom-hint">${icon("expand")}<span class="hint-touch">Tocá para ver en grande</span><span class="hint-mouse">Pasá el mouse para ver el detalle · clic para ampliar</span></span>
        </button>`
     : `<div class="design-hero-img media-empty" aria-hidden="true">${icon("bag", "icon icon-xl")}</div>`;
 
@@ -937,7 +1007,7 @@ function renderDesignOrder(designId) {
       <span aria-current="page">${escapeHtml(name)}</span>
     </nav>
 
-    <div class="pdp">
+    <div class="pdp pdp-design">
       <div class="pdp-media" id="designMediaAnchor">${media}</div>
 
       <div class="pdp-info">
@@ -973,12 +1043,51 @@ function renderDesignOrder(designId) {
   `;
 }
 
+// Lupa en computadora: al pasar el mouse la remera se agranda donde está el puntero.
+// La primera vez carga una versión más grande de la imagen para que se vea nítida.
+function attachDesignMagnifier(btn, imageUrl) {
+  const img = btn.querySelector(".design-hero-img");
+  const fine = typeof window.matchMedia === "function" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  if (!(img instanceof HTMLImageElement) || !fine) return;
+
+  let hiLoaded = false;
+  const loadHi = () => {
+    if (hiLoaded) return;
+    hiLoaded = true;
+    const url = typeof imageUrl === "string" ? imageUrl.trim() : "";
+    const hi = cloudinaryOptimized(url, 2200);
+    if (!url || hi === img.currentSrc) return;
+    const pre = new Image();
+    pre.onload = () => {
+      img.removeAttribute("srcset");
+      img.src = hi;
+    };
+    pre.src = hi;
+  };
+
+  btn.addEventListener("pointerenter", (e) => {
+    if (e.pointerType !== "mouse") return;
+    loadHi();
+    btn.classList.add("is-magnified");
+  });
+  btn.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    const r = img.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const x = Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100));
+    const y = Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100));
+    img.style.transformOrigin = `${x}% ${y}%`;
+  });
+  btn.addEventListener("pointerleave", () => btn.classList.remove("is-magnified"));
+}
+
 function attachDesignOrderHandlers(designId) {
   const ctx = designContext(designId);
   if (!ctx) return;
   const { design, product, materialId, color, sizes } = ctx;
 
   const previewBtn = document.getElementById("designPreviewBtn");
+  if (previewBtn) attachDesignMagnifier(previewBtn, design.imageUrl);
   if (previewBtn) {
     previewBtn.addEventListener("click", () => {
       const url = typeof design.imageUrl === "string" ? design.imageUrl.trim() : "";
@@ -1035,7 +1144,7 @@ function attachDesignOrderHandlers(designId) {
             </div>
           </div>
           <div class="design-preview-stage">
-            <img class="design-preview-img" src="${escapeHtml(cloudinaryOptimized(url, 1600))}" alt="${escapeHtml(title)}" draggable="false" />
+            <img class="design-preview-img" src="${escapeHtml(cloudinaryOptimized(url, 2200))}" alt="${escapeHtml(title)}" draggable="false" />
           </div>
         </div>
       `;
