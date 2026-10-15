@@ -4,8 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BatyGeekStore</title>
-    <meta name="description" content="Remeras, buzos y gorras personalizadas. Argentina. Precios en ARS." />
+    <meta name="description" content="Remeras, buzos y gorras geek estampadas a pedido. Elegí un diseño de la casa o personalizá la tuya con texto o tu imagen." />
     <link rel="icon" href="./baty-logo.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" />
     <link rel="stylesheet" href="./styles.css" />
     <meta name="theme-color" content="#0b0b0e" />
     <meta property="og:type" content="website" />
@@ -23,21 +26,24 @@
     <meta name="twitter:image" content="https://baty-store-e-comerce.vercel.app/og-image.jpg" />
   </head>
   <body>
+    <a class="skip-link" href="#app">Saltar al contenido</a>
     <header class="site-header">
-      <div class="container header-inner">
-        <a class="brand" href="#/">
-          <img class="brand-logo" src="./baty-logo.jpg" alt="BatyGeekStore" width="40" height="40" />
-          <div class="brand-text">
-            <div class="brand-name">BatyGeekStore</div>
-            <div class="brand-tagline">Remeras, buzos y gorras personalizadas</div>
-          </div>
+      <div class="wrap header-inner">
+        <a class="brand" href="#/" aria-label="BatyGeekStore, inicio">
+          <img class="brand-logo" src="./baty-logo.jpg" alt="" width="44" height="44" />
+          <span class="brand-text">
+            <span class="brand-name">BatyGeekStore</span>
+            <span class="brand-tagline">Remeras, buzos y gorras a pedido</span>
+          </span>
         </a>
 
-        <nav class="nav">
-          <a class="nav-link" href="#/">Catálogo</a>
-          <a class="nav-link" href="#/como-funciona">Cómo funciona</a>
-          <a class="nav-link nav-cart" href="#/carrito">
-            Carrito <span class="chip" id="cartCount">0</span>
+        <nav class="nav" aria-label="Principal">
+          <a class="nav-link nav-link-designs" href="#/" data-scroll="disenos" data-nav="disenos">Diseños</a>
+          <a class="nav-link nav-link-how" href="#/como-funciona" data-nav="como-funciona">Cómo funciona</a>
+          <a class="nav-cart" href="#/carrito" data-nav="carrito">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 8h14l-1.2 11.1a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>
+            <span class="nav-cart-label">Carrito</span>
+            <span class="cart-count" id="cartCount" data-empty>0</span>
           </a>
         </nav>
       </div>
@@ -45,14 +51,31 @@
 
     <main class="site-main">
       <div class="container">
-        <div id="app" class="app"></div>
+        <div id="app" class="app" tabindex="-1">
+          <p class="app-loading" role="status">Cargando la tienda…</p>
+        </div>
       </div>
     </main>
 
     <footer class="site-footer">
-      <div class="container footer-inner">
-        <div class="footer-copy">Copyright © 2026 BatyGeekStore.<br />Todos los derechos reservados.<br /> Diseñado y desarrollado por laruzo-dev</div>
-        <a class="footer-link" href="#/politicas">Políticas</a>
+      <div class="wrap footer-inner">
+        <div class="footer-brand">
+          <img src="./baty-logo.jpg" alt="" width="40" height="40" loading="lazy" />
+          <div>
+            <p class="footer-name">BatyGeekStore</p>
+            <p class="footer-text">Remeras, buzos y gorras estampadas a pedido.</p>
+          </div>
+        </div>
+        <nav class="footer-nav" aria-label="Pie de página">
+          <a href="#/" data-scroll="disenos">Diseños</a>
+          <a href="#/producto/remera-basica">Personalizar</a>
+          <a href="#/como-funciona">Cómo funciona</a>
+          <a href="#/politicas">Políticas</a>
+        </nav>
+      </div>
+      <div class="wrap footer-legal">
+        <p>© 2026 BatyGeekStore. Todos los derechos reservados.</p>
+        <p>Diseñado y desarrollado por laruzo-dev</p>
       </div>
     </footer>
 

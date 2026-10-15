@@ -170,6 +170,194 @@ function guessVideoType(src) {
   return "";
 }
 
+/* ===== Íconos (SVG en línea, heredan el color del texto) ===== */
+const ICONS = {
+  bag: '<path d="M5 8h14l-1.2 11.1a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
+  arrowRight: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
+  arrowLeft: '<path d="M19 12H5"/><path d="m11 18-6-6 6-6"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  card: '<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>',
+  chat: '<path d="M20 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-4.2A8 8 0 1 1 20 11.5z"/><path d="M9 10.5h6M9 13.5h4"/>',
+  truck:
+    '<path d="M3 6.5h11v9.5H3z"/><path d="M14 9.5h4l3 3V16h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+  store:
+    '<path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5h16"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-5h4v5"/>',
+  zoomIn: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/><path d="M11 8.5v5M8.5 11h5"/>',
+  zoomOut: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/><path d="M8.5 11h5"/>',
+  reset: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4v4.5H9"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  minus: '<path d="M6 12h12"/>',
+  plus: '<path d="M12 6v12M6 12h12"/>',
+  upload: '<path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  copy:
+    '<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/>',
+  expand: '<path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="m20 4-6.5 6.5"/><path d="M4 20l6.5-6.5"/>',
+};
+
+function icon(name, cls = "icon") {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name] || ""}</svg>`;
+}
+
+function scrollBehavior() {
+  return prefersReducedMotion() ? "auto" : "smooth";
+}
+
+function priceText(amount) {
+  return Number(amount) > 0 ? formatMoney(amount) : "Consultar precio";
+}
+
+function materialLabelFor(value) {
+  const v = String(value || "").trim();
+  return MATERIALS.find((m) => m.id === v)?.label || v;
+}
+
+// Marca o limpia el error de un campo (texto debajo + aria-invalid en sus controles)
+function setFieldError(field, errorEl, message) {
+  if (errorEl) {
+    errorEl.textContent = message || "";
+    errorEl.hidden = !message;
+  }
+  if (!field) return;
+  field.classList.toggle("has-error", Boolean(message));
+  field.querySelectorAll("input, textarea, select").forEach((el) => {
+    if (el instanceof HTMLInputElement && el.type === "hidden") return;
+    if (message) el.setAttribute("aria-invalid", "true");
+    else el.removeAttribute("aria-invalid");
+  });
+}
+
+function focusField(el) {
+  if (!(el instanceof HTMLElement)) return;
+  el.focus({ preventScroll: true });
+  const box = el.closest(".field") || el;
+  box.scrollIntoView({ block: "center", behavior: scrollBehavior() });
+}
+
+const COLOR_SWATCHES = {
+  Negro: "#111114",
+  Blanco: "#f5f5f5",
+  Gris: "#8a8a8f",
+  Azul: "#1f3a8a",
+  Rojo: "#c0262d",
+  Beige: "#d8c7a3",
+};
+
+function sizeOptionsFor(product, materialId) {
+  if (product?.type === "Remera") {
+    const mat = MATERIALS.find((m) => m.id === materialId) || MATERIALS[0];
+    const max = Number(mat?.maxSize) || 6;
+    return Array.from({ length: max }, (_, i) => String(i + 1));
+  }
+  return (product?.sizes || []).map((s) => String(s));
+}
+
+function renderSizePills(sizes, selected) {
+  const single = sizes.length === 1;
+  return sizes
+    .map(
+      (s) => `
+        <label class="pill-option">
+          <input type="radio" name="size" value="${escapeHtml(s)}"${s === selected || single ? " checked" : ""} />
+          <span>${escapeHtml(s)}</span>
+        </label>`,
+    )
+    .join("");
+}
+
+/* ===== Ítems del carrito: textos y miniatura ===== */
+function cartItemTitle(item) {
+  const c = item?.customization || {};
+  if (c.type === "house" && c.designName) return String(c.designName);
+  return String(item?.productName || "Producto");
+}
+
+function cartItemDetails(item) {
+  const c = item?.customization || {};
+  const parts = [];
+  if (c.type === "house" && item?.productName) parts.push(String(item.productName));
+  if (item?.variant?.size) parts.push(`Talle ${item.variant.size}`);
+  if (item?.variant?.color) parts.push(String(item.variant.color));
+  const material = materialLabelFor(c.material);
+  if (material) parts.push(material);
+  return parts.join(" · ");
+}
+
+function cartItemCustom(item) {
+  const c = item?.customization || {};
+  const where = c.placement ? ` · ${c.placement}` : "";
+  if (c.type === "text") return `Texto “${c.text || ""}”${where}`;
+  if (c.type === "upload") return `Tu imagen${c.fileName ? ` (${c.fileName})` : ""}${where}`;
+  return "Diseño de la casa";
+}
+
+function cartItemThumb(item, width = 200) {
+  const c = item?.customization || {};
+  const url = c.type === "house" ? c.imageUrl : c.type === "upload" ? c.fileUrl : "";
+  if (url) return `<img src="${escapeHtml(cloudinaryOptimized(url, width))}" alt="" loading="lazy" />`;
+  if (c.type === "text") return `<span class="thumb-text">${escapeHtml(c.text || "")}</span>`;
+  return icon("bag", "icon icon-lg");
+}
+
+function renderMiniItems(cart) {
+  return cart
+    .map((item) => {
+      const qty = Number(item?.quantity) || 1;
+      return `
+        <li class="mini-item">
+          <span class="mini-thumb">${cartItemThumb(item, 120)}</span>
+          <span class="mini-info">
+            <span class="mini-title">${qty > 1 ? `${qty} × ` : ""}${escapeHtml(cartItemTitle(item))}</span>
+            <span class="mini-meta">${escapeHtml(cartItemDetails(item))}</span>
+          </span>
+          <span class="mini-price">${formatMoney(computeItemTotal(item))}</span>
+        </li>`;
+    })
+    .join("");
+}
+
+function shippingText(method, cost) {
+  if (method !== "delivery") return "Sin cargo";
+  return Number(cost) > 0 ? formatMoney(cost) : "A coordinar";
+}
+
+function renderCheckoutSteps(current) {
+  const steps = ["Carrito", "Tus datos", "Pago"];
+  return `
+    <ol class="progress" aria-label="Pasos del pedido">
+      ${steps
+        .map((label, i) => {
+          const status = i < current ? "done" : i === current ? "current" : "todo";
+          return `
+            <li class="progress-step is-${status}"${i === current ? ' aria-current="step"' : ""}>
+              <span class="progress-dot">${i < current ? icon("check") : i + 1}</span>
+              <span class="progress-label">${label}</span>
+            </li>`;
+        })
+        .join("")}
+    </ol>`;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {}
+    ta.remove();
+    return ok;
+  }
+}
+
 function renderThumbMedia(product) {
   const media = product?.media;
   if (!media || media.kind !== "video" || !media.src) return "";
@@ -185,7 +373,7 @@ function renderThumbMedia(product) {
       preload="metadata"
       aria-hidden="true"
     >
-      <source src="${escapeHtml(media.src)}"${typeAttr} />
+      <source src="${escapeHtml(media.src)}#t=0.1"${typeAttr} />
     </video>
   `;
 }
@@ -332,6 +520,9 @@ function updateCartCount() {
   if (!el) return;
   const count = getCart().reduce((sum, item) => sum + (item.quantity ?? 0), 0);
   el.textContent = String(count);
+  el.toggleAttribute("data-empty", count === 0);
+  const link = el.closest("a");
+  if (link) link.setAttribute("aria-label", count ? `Carrito, ${count} ${count === 1 ? "producto" : "productos"}` : "Carrito vacío");
 }
 
 function navigate(hash) {
@@ -404,78 +595,100 @@ function setupThumbVideos(container) {
   videos.forEach((v) => thumbVideoObserver.observe(v));
 }
 
+let lastRouteKey = null;
+let pendingScroll = "";
+let lastRemoved = null;
+
+function setActiveNav(key) {
+  document.querySelectorAll("[data-nav]").forEach((el) => {
+    const on = Boolean(key) && el.getAttribute("data-nav") === key;
+    el.classList.toggle("is-active", on);
+    if (on) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
+  });
+}
+
 function render() {
   updateCartCount();
-  const { parts, query } = parseRoute();
+  const { hash, parts, query } = parseRoute();
   const root = document.getElementById("app");
   if (!root) return;
 
   // El panel reemplaza a la vieja pantalla de configuración
   const isAdmin = parts[0] === "admin" || parts[0] === "config";
   document.body.classList.toggle("is-admin", isAdmin);
-  document.title = isAdmin ? `Panel · ${CONFIG.storeName}` : CONFIG.storeName;
   if (isAdmin) {
+    document.title = `Panel · ${CONFIG.storeName}`;
     if (parts[0] === "config") history.replaceState(null, "", "#/admin");
     mountAdmin(root, adminApi);
     return;
   }
 
-  if (parts.length === 0) {
-    root.innerHTML = renderCatalog(query);
-    attachCatalogHandlers(query);
-    setupThumbVideos(root);
-    return;
-  }
+  // Volver arriba solo al cambiar de pantalla (no al sumar cantidades en el carrito)
+  const routeChanged = hash !== lastRouteKey;
+  lastRouteKey = hash;
+  if (routeChanged) lastRemoved = null;
 
-  if (parts[0] === "producto" && parts[1]) {
+  let title = "";
+  let nav = "";
+
+  if (parts.length === 0) {
+    root.innerHTML = renderCatalog();
+    attachCatalogHandlers();
+    nav = "disenos";
+  } else if (parts[0] === "producto" && parts[1]) {
     root.innerHTML = renderProduct(parts[1]);
     attachProductHandlers(parts[1]);
-    setupThumbVideos(root);
-    return;
-  }
-
-  if (parts[0] === "diseno" && parts[1]) {
+    title = findProduct(parts[1])?.name || "";
+  } else if (parts[0] === "diseno" && parts[1]) {
     root.innerHTML = renderDesignOrder(parts[1]);
     attachDesignOrderHandlers(parts[1]);
-    setupThumbVideos(root);
-    return;
-  }
-
-  if (parts[0] === "carrito") {
+    title = findDesign(parts[1])?.name || "";
+    nav = "disenos";
+  } else if (parts[0] === "carrito") {
     root.innerHTML = renderCart();
     attachCartHandlers();
-    setupThumbVideos(root);
-    return;
-  }
-
-  if (parts[0] === "checkout") {
+    title = "Tu carrito";
+    nav = "carrito";
+  } else if (parts[0] === "checkout") {
     const orderId = query.get("orderId");
     if (orderId) {
       root.innerHTML = renderOrderConfirmation(orderId);
       attachOrderConfirmationHandlers(orderId);
-      setupThumbVideos(root);
+      title = "Pedido generado";
+    } else {
+      root.innerHTML = renderCheckout();
+      attachCheckoutHandlers();
+      title = "Completá tu pedido";
+    }
+  } else if (parts[0] === "como-funciona") {
+    root.innerHTML = renderHowItWorks();
+    title = "Cómo funciona";
+    nav = "como-funciona";
+  } else if (parts[0] === "politicas") {
+    root.innerHTML = renderPolicies();
+    title = "Políticas";
+  } else {
+    root.innerHTML = renderNotFound();
+    title = "Página no encontrada";
+  }
+
+  setupThumbVideos(root);
+  setActiveNav(nav);
+  document.title = title
+    ? `${title} · ${CONFIG.storeName}`
+    : `${CONFIG.storeName} · Remeras geek estampadas a pedido`;
+
+  if (pendingScroll && parts.length === 0) {
+    const target = document.getElementById(pendingScroll);
+    pendingScroll = "";
+    if (target) {
+      target.scrollIntoView({ block: "start", behavior: "auto" });
       return;
     }
-    root.innerHTML = renderCheckout();
-    attachCheckoutHandlers();
-    setupThumbVideos(root);
-    return;
   }
-
-  if (parts[0] === "como-funciona") {
-    root.innerHTML = renderHowItWorks();
-    setupThumbVideos(root);
-    return;
-  }
-
-  if (parts[0] === "politicas") {
-    root.innerHTML = renderPolicies();
-    setupThumbVideos(root);
-    return;
-  }
-
-  root.innerHTML = renderNotFound();
-  setupThumbVideos(root);
+  pendingScroll = "";
+  if (routeChanged) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
 function getCloudinaryConfig() {
@@ -494,314 +707,172 @@ function getCloudinaryConfig() {
   return cfg;
 }
 
-function renderCatalog(query) {
-  const itemsHtml = PRODUCTS.map((p) => {
-    const base =
-      p.type === "Remera" ? productBasePriceFor(p, "peinado") : productBasePriceFor(p, "");
-    return `
-      <article class="card">
-        <div class="thumb" data-label="${escapeHtml(p.type)}">
-          ${renderThumbMedia(p)}
-        </div>
-        <div class="row">
-          <div class="pill">Personalizable</div>
-          <div class="price">${formatMoney(base)}</div>
-        </div>
-        <h3 class="card-title">${escapeHtml(p.name)}</h3>
-        <p class="card-meta">${escapeHtml(p.description)}</p>
-        <div class="row">
-          <button class="btn btn-outline" data-view="${escapeHtml(p.id)}">Ver</button>
-          <button class="btn btn-primary" data-customize="${escapeHtml(p.id)}">Personalizar</button>
-        </div>
-      </article>
-    `;
-  }).join("");
+// Serie de un diseño: el nombre sin el número final ("MIKU 3" → "MIKU")
+function designSeries(name) {
+  const text = String(name || "").trim();
+  return text.replace(/[\s\d]+$/, "").trim() || text;
+}
 
-  const designs = getDesigns();
+function designPrice(design) {
+  const product = findProduct(design?.productId || "remera-basica");
+  const base = product ? productBasePriceFor(product, design?.materialId || "peinado") : 0;
+  return base + designPriceFor(design);
+}
+
+function productFromPrice(product) {
+  if (product.type === "Remera") {
+    return Math.min(...MATERIALS.map((m) => productBasePriceFor(product, m.id)));
+  }
+  return productBasePriceFor(product, "");
+}
+
+function designCountText(n) {
+  return `${n} ${n === 1 ? "diseño" : "diseños"}`;
+}
+
+function renderCatalog() {
+  const designs = getDesigns().filter((d) => d && d.id);
+  const series = [...new Set(designs.map((d) => designSeries(d.name)))];
+
+  const chipsHtml =
+    series.length > 1
+      ? `
+        <div class="chips" role="group" aria-label="Filtrar diseños por serie">
+          <button class="chip-btn" type="button" data-series="" aria-pressed="true">Todos</button>
+          ${series
+            .map(
+              (s) =>
+                `<button class="chip-btn" type="button" data-series="${escapeHtml(s)}" aria-pressed="false">${escapeHtml(s)}</button>`,
+            )
+            .join("")}
+        </div>`
+      : "";
+
   const designsHtml = designs
     .map((d) => {
-      const img = typeof d?.imageUrl === "string" ? d.imageUrl.trim() : "";
+      const img = typeof d.imageUrl === "string" ? d.imageUrl.trim() : "";
       const media = img
-        ? `<img class="design-card-img" src="${escapeHtml(cloudinaryOptimized(img, 600))}" alt="${escapeHtml(d.name)}" loading="lazy" />`
-        : `<div class="design-card-img placeholder"></div>`;
-      const product = findProduct(d.productId || "remera-basica");
-      const price = product ? productBasePriceFor(product, d.materialId) + designPriceFor(d) : designPriceFor(d);
+        ? `<img src="${escapeHtml(cloudinaryOptimized(img, 600))}" alt="" loading="lazy" decoding="async" />`
+        : `<span class="media-empty">${icon("bag", "icon icon-lg")}</span>`;
       return `
-        <button class="design-card" type="button" role="listitem" aria-label="Ver diseño ${escapeHtml(
-          d.name,
-        )}" data-design-order="${escapeHtml(d.id)}">
-          ${media}
-          <div class="design-card-name">${escapeHtml(d.name)}</div>
-          <div class="design-card-price">${price ? formatMoney(price) : ""}</div>
-        </button>
-      `;
+        <a class="design-card" href="#/diseno/${encodeURIComponent(d.id)}" data-series="${escapeHtml(designSeries(d.name))}">
+          <span class="design-card-media">${media}</span>
+          <span class="design-card-body">
+            <span class="design-card-name">${escapeHtml(d.name)}</span>
+            <span class="design-card-price">${priceText(designPrice(d))}</span>
+          </span>
+        </a>`;
     })
     .join("");
 
+  const productsHtml = PRODUCTS.map((p) => {
+    const from = productFromPrice(p);
+    return `
+      <a class="product-card" href="#/producto/${encodeURIComponent(p.id)}">
+        <span class="product-card-media">${renderThumbMedia(p)}</span>
+        <span class="product-card-body">
+          <span class="product-card-name">${escapeHtml(p.name)}</span>
+          <span class="product-card-desc">${escapeHtml(p.description)}</span>
+          <span class="product-card-foot">
+            <span class="product-card-price">${from > 0 ? `Desde ${formatMoney(from)}` : "Consultar precio"}</span>
+            <span class="product-card-cta">Personalizar ${icon("arrowRight")}</span>
+          </span>
+        </span>
+      </a>`;
+  }).join("");
+
   return `
-    <div class="stack">
-      <section class="hero">
-        <div class="hero-left">
-          <h1 class="hero-title">${escapeHtml(CONFIG.storeName)}</h1>
-          <p class="hero-subtitle">
-            Remeras, buzos y gorras con estampas personalizadas. Elegís, configurás y confirmás con pago total.
-          </p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="#/como-funciona">Cómo funciona</a>
-            <a class="btn btn-outline" href="#/carrito">Ver carrito</a>
-          </div>
+    <section class="hero">
+      <div class="hero-copy">
+        <h1 class="hero-title">Remeras geek <span class="hero-accent">estampadas a pedido</span></h1>
+        <p class="hero-lead">Elegí un diseño de la casa o personalizá tu remera, buzo o gorra con texto o tu propia imagen.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary btn-lg" href="#/" data-scroll="disenos">Ver diseños ${icon("arrowRight")}</a>
+          <a class="btn btn-ghost btn-lg" href="#/producto/remera-basica">Personalizar la mía</a>
         </div>
-        <div class="hero-right hero-right-akira">
-          <div class="notice hero-right-notice">
-            <div class="notice-title">Pago total</div>
-            <p class="notice-text">
-              Confirmás tu pedido abonando el total por transferencia.
-              Te mostramos el CVU/CBU al finalizar y podés enviar el mensaje por WhatsApp.
-            </p>
-          </div>
-        </div>
-      </section>
+        <ul class="hero-facts">
+          <li>${icon("card")}Pago por transferencia</li>
+          <li>${icon("chat")}Pedido por WhatsApp</li>
+          <li>${icon("truck")}Retiro o envío a domicilio</li>
+        </ul>
+      </div>
+      <figure class="hero-art">
+        <img src="./imgAkira/akira7.jpeg" width="1330" height="1600" alt="Remera de Akira junto a la moto de Kaneda" fetchpriority="high" decoding="async" />
+      </figure>
+    </section>
 
-      <section class="panel">
-        <div class="row">
-          <h2 class="panel-title" style="margin:0">Diseños de la casa</h2>
+    <section class="section" id="disenos" aria-labelledby="disenosTitle">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title" id="disenosTitle">Diseños de la casa</h2>
+          <p class="section-sub">Elegí un diseño y pasá directo al pedido.</p>
         </div>
-        <p class="panel-subtitle">Elegí un diseño y pasá directo al pedido.</p>
-        ${
-          designs.length > 0
-            ? `
-              <div class="carousel-shell">
-                <button class="carousel-btn prev" type="button" aria-label="Anterior" id="homeCarouselPrev">‹</button>
-                <div class="design-carousel" id="homeDesignCarousel" role="list" aria-label="Diseños de la casa">${designsHtml}</div>
-                <button class="carousel-btn next" type="button" aria-label="Siguiente" id="homeCarouselNext">›</button>
-              </div>
-            `
-            : `<div class="notice"><div class="notice-title">Próximamente</div><p class="notice-text">Todavía no hay diseños publicados.</p></div>`
-        }
-      </section>
+        ${designs.length ? `<p class="section-count" id="designCount" aria-live="polite">${designCountText(designs.length)}</p>` : ""}
+      </div>
+      ${
+        designs.length
+          ? `${chipsHtml}<div class="design-grid">${designsHtml}</div>`
+          : `<div class="empty empty-inline">
+               <span class="empty-icon">${icon("bag", "icon icon-lg")}</span>
+               <h3 class="empty-title">Próximamente</h3>
+               <p class="empty-text">Todavía no hay diseños publicados.</p>
+             </div>`
+      }
+    </section>
 
-      <section class="grid">
-        ${itemsHtml}
-      </section>
-    </div>
+    <section class="section" id="personalizar" aria-labelledby="personalizarTitle">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title" id="personalizarTitle">Personalizá tu prenda</h2>
+          <p class="section-sub">Elegí la prenda y sumale tu texto o tu imagen.</p>
+        </div>
+      </div>
+      <div class="product-grid">${productsHtml}</div>
+    </section>
+
+    <section class="section how-strip" aria-labelledby="comoTitle">
+      <h2 class="section-title" id="comoTitle">Cómo comprar</h2>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num">1</span>
+          <div><h3 class="step-title">Elegí</h3><p class="step-text">Un diseño de la casa o la prenda que querés personalizar.</p></div>
+        </li>
+        <li class="step">
+          <span class="step-num">2</span>
+          <div><h3 class="step-title">Generá el pedido</h3><p class="step-text">Completás tus datos y te mostramos el total.</p></div>
+        </li>
+        <li class="step">
+          <span class="step-num">3</span>
+          <div><h3 class="step-title">Pagá y listo</h3><p class="step-text">Transferís, nos mandás el comprobante por WhatsApp y pasamos a producción.</p></div>
+        </li>
+      </ol>
+      <a class="link-arrow" href="#/como-funciona">Ver cómo funciona ${icon("arrowRight")}</a>
+    </section>
   `;
 }
 
 function attachCatalogHandlers() {
-  document.querySelectorAll("[data-view]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const id = e.currentTarget.getAttribute("data-view");
-      navigate(`#/producto/${id}`);
+  const chips = Array.from(document.querySelectorAll(".chip-btn[data-series]"));
+  const cards = Array.from(document.querySelectorAll(".design-card[data-series]"));
+  const countEl = document.getElementById("designCount");
+
+  chips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const series = chip.getAttribute("data-series") || "";
+      chips.forEach((c) => c.setAttribute("aria-pressed", String(c === chip)));
+      let visible = 0;
+      cards.forEach((card) => {
+        const show = !series || card.getAttribute("data-series") === series;
+        card.hidden = !show;
+        if (show) visible += 1;
+      });
+      if (countEl) countEl.textContent = designCountText(visible);
     });
   });
-  document.querySelectorAll("[data-customize]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const id = e.currentTarget.getAttribute("data-customize");
-      navigate(`#/producto/${id}`);
-    });
-  });
-
-  document.querySelectorAll("[data-design-order]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const id = e.currentTarget.getAttribute("data-design-order");
-      navigate(`#/diseno/${id}`);
-    });
-  });
-
-  const carousel = document.getElementById("homeDesignCarousel");
-  const prevBtn = document.getElementById("homeCarouselPrev");
-  const nextBtn = document.getElementById("homeCarouselNext");
-
-  if (carousel instanceof HTMLElement) {
-    initHorizontalCarousel(carousel, prevBtn, nextBtn);
-  }
 }
 
 function findProduct(productId) {
   return PRODUCTS.find((p) => p.id === productId) || null;
-}
-
-function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
-  const prev = prevBtn instanceof HTMLElement ? prevBtn : null;
-  const next = nextBtn instanceof HTMLElement ? nextBtn : null;
-
-  carousel.style.cursor = "grab";
-  carousel.style.userSelect = "none";
-
-  const reducedMotion = prefersReducedMotion();
-
-  let isDown = false;
-  let startX = 0;
-  let startScrollLeft = 0;
-  let didDrag = false;
-  let dragBlockUntil = 0;
-  let activePointerId = null;
-
-  let autoRaf = 0;
-  let autoEnabled = false;
-  let pausedUntil = 0;
-  let nextAutoAt = 0;
-  let isVisible = true;
-
-  function pauseAuto(ms) {
-    pausedUntil = Date.now() + ms;
-  }
-
-  function updateButtons() {
-    if (!prev && !next) return;
-    const max = carousel.scrollWidth - carousel.clientWidth;
-    const x = carousel.scrollLeft;
-    const atStart = x <= 2;
-    const atEnd = x >= max - 2;
-    if (prev) prev.disabled = atStart;
-    if (next) next.disabled = atEnd;
-    if (prev) prev.setAttribute("aria-disabled", String(atStart));
-    if (next) next.setAttribute("aria-disabled", String(atEnd));
-  }
-
-  function scrollByPage(dir) {
-    const amount = Math.max(220, Math.floor(carousel.clientWidth * 0.85));
-    carousel.scrollBy({ left: dir * amount, behavior: "smooth" });
-    pauseAuto(2500);
-  }
-
-  if (prev) prev.addEventListener("click", () => scrollByPage(-1));
-  if (next) next.addEventListener("click", () => scrollByPage(1));
-
-  carousel.addEventListener(
-    "wheel",
-    (e) => {
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-      e.preventDefault();
-      carousel.scrollLeft += e.deltaY;
-      pauseAuto(2500);
-    },
-    { passive: false },
-  );
-
-  carousel.addEventListener("scroll", updateButtons, { passive: true });
-  updateButtons();
-
-  carousel.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    const target = e.target instanceof HTMLElement ? e.target : null;
-    if (target && target.closest(".carousel-btn")) return;
-
-    isDown = true;
-    activePointerId = e.pointerId;
-    startX = e.clientX;
-    startScrollLeft = carousel.scrollLeft;
-    didDrag = false;
-    carousel.style.cursor = "grabbing";
-    pauseAuto(3500);
-
-    window.addEventListener("pointermove", onMove, { passive: false });
-    window.addEventListener("pointerup", onUp, { passive: true });
-    window.addEventListener("pointercancel", onUp, { passive: true });
-  });
-
-  function onMove(e) {
-    if (!isDown) return;
-    if (activePointerId !== e.pointerId) return;
-    const dx = e.clientX - startX;
-    if (Math.abs(dx) > 10) didDrag = true;
-    if (!didDrag) return;
-    e.preventDefault();
-    carousel.scrollLeft = startScrollLeft - dx;
-  }
-
-  function onUp(e) {
-    if (!isDown) return;
-    if (activePointerId !== e.pointerId) return;
-
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-    window.removeEventListener("pointercancel", onUp);
-
-    isDown = false;
-    activePointerId = null;
-    carousel.style.cursor = "grab";
-    if (didDrag) dragBlockUntil = Date.now() + 450;
-  }
-
-  carousel.addEventListener(
-    "click",
-    (e) => {
-      if (Date.now() < dragBlockUntil) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    },
-    true,
-  );
-
-  function computeStep() {
-    const first = carousel.querySelector(".design-card");
-    if (!(first instanceof HTMLElement)) return Math.max(220, Math.floor(carousel.clientWidth * 0.8));
-    const rect = first.getBoundingClientRect();
-    const gapRaw = getComputedStyle(carousel).columnGap || getComputedStyle(carousel).gap || "0px";
-    const gap = Number.parseFloat(String(gapRaw)) || 0;
-    return Math.max(180, Math.round(rect.width + gap));
-  }
-
-  function tick(ts) {
-    if (!autoEnabled) {
-      autoRaf = 0;
-      return;
-    }
-    autoRaf = requestAnimationFrame(tick);
-    if (reducedMotion || document.hidden || !isVisible) return;
-    if (Date.now() < pausedUntil) return;
-
-    const max = carousel.scrollWidth - carousel.clientWidth;
-    if (max <= 2) return;
-
-    if (!nextAutoAt) nextAutoAt = ts + 2200;
-    if (ts < nextAutoAt) return;
-    nextAutoAt = ts + 2200;
-
-    const step = computeStep();
-    const atEnd = carousel.scrollLeft >= max - 2;
-    if (atEnd) {
-      carousel.scrollTo({ left: 0, behavior: "smooth" });
-      return;
-    }
-    carousel.scrollBy({ left: step, behavior: "smooth" });
-  }
-
-  function startAuto() {
-    if (autoEnabled) return;
-    autoEnabled = true;
-    nextAutoAt = 0;
-    autoRaf = requestAnimationFrame(tick);
-  }
-
-  function stopAuto() {
-    autoEnabled = false;
-    nextAutoAt = 0;
-    if (autoRaf) cancelAnimationFrame(autoRaf);
-    autoRaf = 0;
-  }
-
-  carousel.addEventListener("pointerenter", () => pauseAuto(999999));
-  carousel.addEventListener("pointerleave", () => pauseAuto(800));
-  carousel.addEventListener("focusin", () => pauseAuto(999999));
-  carousel.addEventListener("focusout", () => pauseAuto(800));
-
-  if ("IntersectionObserver" in window) {
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        isVisible = Boolean(entry && entry.isIntersecting);
-        if (!isVisible) pauseAuto(999999);
-        else pauseAuto(800);
-      },
-      { root: null, threshold: 0.2 },
-    );
-    obs.observe(carousel);
-  }
-
-  if (!reducedMotion) startAuto();
 }
 
 // Talles que se ofrecen para un diseño. Si el diseño no los limita, la remera usa
@@ -820,153 +891,92 @@ function designSizesFor(design, product) {
   return (product?.sizes || []).map((s) => String(s));
 }
 
-function renderDesignOrder(designId) {
+function designContext(designId) {
   const design = findDesign(designId);
-  if (!design) return renderNotFound();
-
+  if (!design) return null;
   const productId = typeof design.productId === "string" && design.productId ? design.productId : "remera-basica";
   const product = findProduct(productId);
-  if (!product) return renderNotFound();
+  if (!product) return null;
 
-  const fixedSize = typeof design.fixedSize === "string" ? design.fixedSize.trim() : "";
   const fixedColor = typeof design.fixedColor === "string" ? design.fixedColor.trim() : "";
   const materialId = typeof design.materialId === "string" ? design.materialId.trim() : "";
-  const materialLabel = materialId ? MATERIALS.find((m) => m.id === materialId)?.label || materialId : "";
   const fallbackColor = Array.isArray(product.colors) && product.colors.length > 0 ? String(product.colors[0]) : "";
-  const effectiveColor = fixedColor || fallbackColor;
+  return {
+    design,
+    product,
+    name: String(design.name || "Diseño"),
+    fixedSize: typeof design.fixedSize === "string" ? design.fixedSize.trim() : "",
+    materialId,
+    color: fixedColor || fallbackColor,
+    sizes: designSizesFor(design, product),
+    image: typeof design.imageUrl === "string" ? design.imageUrl.trim() : "",
+    price: productBasePriceFor(product, materialId || "peinado") + designPriceFor(design),
+  };
+}
 
-  const allowed = designSizesFor(design, product);
+function renderDesignOrder(designId) {
+  const ctx = designContext(designId);
+  if (!ctx) return renderNotFound();
+  const { product, name, fixedSize, materialId, color, sizes, image, price } = ctx;
 
-  const sizeOptions = allowed
-    .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
-    .join("");
+  const ship = shippingConfig();
+  const meta = [product.name, materialLabelFor(materialId), color].filter(Boolean).join(" · ");
+  const sizeHelp = buildWhatsappLink(`Hola ${CONFIG.storeName}, tengo una duda con el talle del diseño ${name}.`);
 
-  const img = typeof design.imageUrl === "string" ? design.imageUrl.trim() : "";
-  const media = img
-    ? `<button class="design-preview-btn" type="button" id="designPreviewBtn" aria-label="Ver diseño en grande">
-         <img class="design-hero-img" src="${escapeHtml(cloudinaryOptimized(img, 1000))}" alt="${escapeHtml(design.name)}" />
+  const media = image
+    ? `<button class="design-preview-btn" type="button" id="designPreviewBtn" aria-label="Ver ${escapeHtml(name)} en grande">
+         <img class="design-hero-img" src="${escapeHtml(cloudinaryOptimized(image, 1000))}" alt="${escapeHtml(name)}" decoding="async" />
+         <span class="zoom-hint">${icon("expand")}Ver en grande</span>
        </button>`
-    : `<div class="design-hero-img placeholder"></div>`;
-
-  const base = productBasePriceFor(product, materialId || "peinado");
-  const extra = designPriceFor(design);
-  const estimated = base + extra;
+    : `<div class="design-hero-img media-empty" aria-hidden="true">${icon("bag", "icon icon-xl")}</div>`;
 
   return `
-    <div class="two-col">
-      <section class="panel">
-        <div class="row">
-          <button class="btn" type="button" id="backToCatalog">Volver</button>
-          <div class="pill">Diseño de la casa</div>
-        </div>
-        <div class="design-hero" id="designMediaAnchor">
-          ${media}
-          <div style="min-width:0">
-            <h1 class="panel-title" style="margin:0">${escapeHtml(design.name)}</h1>
-            <p class="panel-subtitle">Producto: ${escapeHtml(product.name)}</p>
-            ${img ? `<div class="hint">Tocá la imagen para verla en grande.</div>` : ""}
-          </div>
-        </div>
+    <nav class="crumbs" aria-label="Estás en">
+      <a href="#/">Inicio</a><span aria-hidden="true">/</span>
+      <a href="#/" data-scroll="disenos">Diseños</a><span aria-hidden="true">/</span>
+      <span aria-current="page">${escapeHtml(name)}</span>
+    </nav>
 
-        <div class="divider"></div>
+    <div class="pdp">
+      <div class="pdp-media" id="designMediaAnchor">${media}</div>
 
-        <form id="designOrderForm" class="form" autocomplete="off">
-          <input type="hidden" name="designId" value="${escapeHtml(design.id)}" />
-          <input type="hidden" name="productId" value="${escapeHtml(product.id)}" />
+      <div class="pdp-info">
+        <h1 class="pdp-title">${escapeHtml(name)}</h1>
+        <p class="pdp-meta">${escapeHtml(meta)}</p>
+        <p class="pdp-price">${priceText(price)}</p>
 
-          <div class="field">
-            <label for="size">Talle (según el diseñador)</label>
-            ${
-              fixedSize
-                ? `<input value="${escapeHtml(fixedSize)}" disabled />
-                   <input type="hidden" name="size" value="${escapeHtml(fixedSize)}" />`
-                : `<select id="size" name="size" required>${sizeOptions}</select>`
-            }
-          </div>
+        <form id="designOrderForm" class="form" novalidate>
+          <fieldset class="field" id="sizeField" aria-describedby="sizeError">
+            <legend class="label">Talle</legend>
+            <div class="pill-options">${renderSizePills(sizes, fixedSize)}</div>
+            <p class="field-error" id="sizeError" hidden></p>
+            <a class="help-link" href="${escapeHtml(sizeHelp)}" target="_blank" rel="noopener">${icon("chat")}¿Dudas con el talle? Consultanos</a>
+          </fieldset>
 
           <div class="field">
-            <label for="color">Color</label>
-            <input value="${escapeHtml(effectiveColor || "—")}" disabled />
-            <input type="hidden" name="color" value="${escapeHtml(effectiveColor)}" />
+            <label class="label" for="notes">Notas <span class="optional">(opcional)</span></label>
+            <textarea id="notes" name="notes" rows="3" placeholder="Algo que tengamos que saber del pedido"></textarea>
           </div>
 
-          ${
-            product.type === "Remera" && materialLabel
-              ? `<div class="field full">
-                   <label>Material</label>
-                   <input value="${escapeHtml(materialLabel)}" disabled />
-                   <input type="hidden" name="materialId" value="${escapeHtml(materialId)}" />
-                 </div>`
-              : ""
-          }
-
-          <div class="field full">
-            <label for="notes">Notas</label>
-            <textarea id="notes" name="notes" placeholder="Detalles extra..."></textarea>
-          </div>
-
-          <div class="field full">
-            <div class="row">
-              <button class="btn btn-primary" type="submit">Agregar al carrito</button>
-              <a class="btn btn-outline" href="#/carrito">Ver carrito</a>
-            </div>
-          </div>
+          <button class="btn btn-primary btn-lg btn-block" type="submit">
+            ${icon("bag")}Agregar al carrito${price > 0 ? ` · ${formatMoney(price)}` : ""}
+          </button>
         </form>
-      </section>
 
-      <aside class="panel summary-panel">
-        <h2 class="panel-title">Resumen</h2>
-        <p class="panel-subtitle">Incluye el precio del diseño.</p>
-        <div class="divider"></div>
-
-        <div class="line">
-          <div class="line-title">Producto</div>
-          <div class="mono">${formatMoney(base)}</div>
-        </div>
-        <div class="line">
-          <div class="line-title">Diseño</div>
-          <div class="mono">${extra ? `+${formatMoney(extra)}` : formatMoney(0)}</div>
-        </div>
-        ${
-          materialLabel
-            ? `<div class="line"><div class="line-title">Material</div><div class="mono">${escapeHtml(
-                materialLabel,
-              )}</div></div>`
-            : ""
-        }
-        <div class="line">
-          <div>
-            <div class="line-title">Total estimado</div>
-            <div class="line-sub">Sin envío</div>
-          </div>
-          <div class="mono">${formatMoney(estimated)}</div>
-        </div>
-
-        <div class="notice" style="margin-top:12px">
-          <div class="notice-title">Pago total</div>
-          <p class="notice-text">Total a pagar: ${formatMoney(estimated)}.</p>
-        </div>
-      </aside>
+        <ul class="facts">
+          <li>${icon("card")}<span>Pagás el total por transferencia.</span></li>
+          <li>${icon("truck")}<span>${escapeHtml(ship.pickupLabel)} o ${escapeHtml(ship.deliveryLabel.toLowerCase())}.</span></li>
+          <li>${icon("check")}<span>Con el pago confirmado pasamos a producción.</span></li>
+        </ul>
+      </div>
     </div>
   `;
 }
 
 function attachDesignOrderHandlers(designId) {
-  const design = findDesign(designId);
-  if (!design) return;
-
-  const productId = typeof design.productId === "string" && design.productId ? design.productId : "remera-basica";
-  const product = findProduct(productId);
-  if (!product) return;
-
-  const backBtn = document.getElementById("backToCatalog");
-
-  if (window.matchMedia("(max-width: 900px)").matches) {
-    setTimeout(() => {
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    }, 50);
-  }
-  if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
+  const ctx = designContext(designId);
+  if (!ctx) return;
+  const { design, product, materialId, color, sizes } = ctx;
 
   const previewBtn = document.getElementById("designPreviewBtn");
   if (previewBtn) {
@@ -986,7 +996,23 @@ function attachDesignOrderHandlers(designId) {
       document.body.style.overflow = "hidden";
 
       const onKeyDown = (ev) => {
-        if (ev.key === "Escape") close();
+        if (ev.key === "Escape") {
+          close();
+          return;
+        }
+        // Mantener el foco dentro de la vista ampliada
+        if (ev.key !== "Tab") return;
+        const items = Array.from(modal.querySelectorAll("button"));
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (ev.shiftKey && document.activeElement === first) {
+          ev.preventDefault();
+          last.focus();
+        } else if (!ev.shiftKey && document.activeElement === last) {
+          ev.preventDefault();
+          first.focus();
+        }
       };
 
       const close = () => {
@@ -1002,20 +1028,20 @@ function attachDesignOrderHandlers(designId) {
           <div class="design-preview-topbar">
             <div class="design-preview-title">${escapeHtml(title)}</div>
             <div class="design-preview-tools">
-              <button class="btn btn-outline design-preview-zoomout" type="button" aria-label="Alejar">−</button>
-              <button class="btn btn-outline design-preview-zoomin" type="button" aria-label="Acercar">+</button>
-              <button class="btn btn-outline design-preview-reset" type="button" aria-label="Restablecer zoom">Reset</button>
-              <button class="btn btn-outline design-preview-close" type="button" data-close-modal>Cerrar</button>
+              <button class="icon-btn design-preview-zoomout" type="button" aria-label="Alejar">${icon("zoomOut")}</button>
+              <button class="icon-btn design-preview-zoomin" type="button" aria-label="Acercar">${icon("zoomIn")}</button>
+              <button class="icon-btn design-preview-reset" type="button" aria-label="Volver al tamaño original">${icon("reset")}</button>
+              <button class="icon-btn design-preview-close" type="button" data-close-modal aria-label="Cerrar">${icon("close")}</button>
             </div>
           </div>
-          <div class="design-preview-stage" aria-label="Vista previa ampliable">
+          <div class="design-preview-stage">
             <img class="design-preview-img" src="${escapeHtml(cloudinaryOptimized(url, 1600))}" alt="${escapeHtml(title)}" draggable="false" />
           </div>
         </div>
       `;
 
       modal.addEventListener("click", (ev) => {
-        const t = ev.target instanceof HTMLElement ? ev.target : null;
+        const t = ev.target instanceof Element ? ev.target : null;
         if (t && t.closest("[data-close-modal]")) close();
       });
 
@@ -1229,39 +1255,25 @@ function attachDesignOrderHandlers(designId) {
   }
 
   const form = document.getElementById("designOrderForm");
-  if (!form) return;
+  if (!(form instanceof HTMLFormElement)) return;
+  const sizeField = document.getElementById("sizeField");
+  const sizeError = document.getElementById("sizeError");
+
+  form.addEventListener("change", (ev) => {
+    if (ev.target instanceof HTMLInputElement && ev.target.name === "size") setFieldError(sizeField, sizeError, "");
+  });
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const fd = new FormData(form);
     const size = String(fd.get("size") || "").trim();
-    const color = String(fd.get("color") || "").trim();
     const notes = String(fd.get("notes") || "").trim();
-    const materialId = String(fd.get("materialId") || "").trim();
 
-    const fixedSize = typeof design.fixedSize === "string" ? design.fixedSize.trim() : "";
-    const fixedColor = typeof design.fixedColor === "string" ? design.fixedColor.trim() : "";
-    const fixedMaterialId = typeof design.materialId === "string" ? design.materialId.trim() : "";
-    const fallbackColor = Array.isArray(product.colors) && product.colors.length > 0 ? String(product.colors[0]) : "";
-    const effectiveColor = fixedColor || fallbackColor;
-
-    const allowed = designSizesFor(design, product);
-    if (!allowed.includes(size)) {
-      alert("El talle seleccionado no está disponible para este diseño.");
+    if (!sizes.includes(size)) {
+      setFieldError(sizeField, sizeError, "Elegí un talle para seguir.");
+      focusField(sizeField?.querySelector("input"));
       return;
     }
-    if (effectiveColor && color !== effectiveColor) {
-      alert("El color seleccionado no está disponible para este diseño.");
-      return;
-    }
-    if (fixedMaterialId && materialId !== fixedMaterialId) {
-      alert("El material seleccionado no está disponible para este diseño.");
-      return;
-    }
-
-    const materialLabel = fixedMaterialId
-      ? MATERIALS.find((m) => m.id === fixedMaterialId)?.label || fixedMaterialId
-      : "";
 
     const cart = getCart();
     cart.push({
@@ -1275,11 +1287,11 @@ function attachDesignOrderHandlers(designId) {
         designName: String(design.name || ""),
         designPrice: designPriceFor(design),
         imageUrl: typeof design.imageUrl === "string" ? design.imageUrl.trim() : "",
-        material: materialLabel,
+        material: materialLabelFor(materialId),
         notes,
       },
       quantity: 1,
-      unitPrice: productBasePriceFor(product, fixedMaterialId || "peinado"),
+      unitPrice: productBasePriceFor(product, materialId || "peinado"),
       extrasPrice: designPriceFor(design),
       createdAt: Date.now(),
     });
@@ -1292,142 +1304,145 @@ function renderProduct(productId) {
   const product = findProduct(productId);
   if (!product) return renderNotFound();
 
-  const sizes = (product.sizes || [])
-    .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
-    .join("");
-  const colors = (product.colors || [])
-    .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
-    .join("");
-  const placements = (product.placements || [])
+  const isRemera = product.type === "Remera";
+  const firstMaterial = isRemera ? MATERIALS[0]?.id || "peinado" : "";
+  const base = productBasePriceFor(product, firstMaterial);
+  const placements = Array.isArray(product.placements) ? product.placements : [];
+  const firstPlacement = placements[0] || "";
+  const extra = placementPrice(firstPlacement);
+  const colors = Array.isArray(product.colors) ? product.colors.map(String) : [];
+
+  const materialHtml = isRemera
+    ? `
+      <fieldset class="field">
+        <legend class="label">Tela</legend>
+        <div class="option-cards">
+          ${MATERIALS.map(
+            (m, i) => `
+              <label class="option-card">
+                <input type="radio" name="material" value="${escapeHtml(m.id)}"${i === 0 ? " checked" : ""} />
+                <span class="option-card-body">
+                  <span class="option-card-title">${escapeHtml(m.label)}</span>
+                  <span class="option-card-meta">${formatMoney(productBasePriceFor(product, m.id))} · Talles 1 a ${escapeHtml(m.maxSize)}</span>
+                </span>
+              </label>`,
+          ).join("")}
+        </div>
+      </fieldset>`
+    : "";
+
+  const colorHtml = colors.length
+    ? `
+      <fieldset class="field">
+        <legend class="label">Color <span class="label-value" id="colorValue">${escapeHtml(colors[0])}</span></legend>
+        <div class="swatches">
+          ${colors
+            .map(
+              (c, i) => `
+                <label class="swatch" title="${escapeHtml(c)}">
+                  <input type="radio" name="color" value="${escapeHtml(c)}"${i === 0 ? " checked" : ""} />
+                  <span class="swatch-dot" style="--swatch:${COLOR_SWATCHES[c] || "#777"}"></span>
+                  <span class="sr-only">${escapeHtml(c)}</span>
+                </label>`,
+            )
+            .join("")}
+        </div>
+      </fieldset>`
+    : "";
+
+  const placementHtml = placements
     .map(
-      (pl) =>
-        `<option value="${escapeHtml(pl)}">${escapeHtml(pl)} (+${formatMoney(placementPrice(pl))})</option>`,
+      (p, i) => `
+        <label class="option-card">
+          <input type="radio" name="placement" value="${escapeHtml(p)}"${i === 0 ? " checked" : ""} />
+          <span class="option-card-body">
+            <span class="option-card-title">${escapeHtml(p)}</span>
+            <span class="option-card-meta">${placementPrice(p) > 0 ? `+${formatMoney(placementPrice(p))}` : "Sin cargo"}</span>
+          </span>
+        </label>`,
     )
     .join("");
 
-  const isRemera = product.type === "Remera";
-  const materialOptions = MATERIALS.map(
-    (m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`,
-  ).join("");
-
-  const defaultMaterial = MATERIALS[0];
-  const defaultMax = defaultMaterial?.maxSize ?? 6;
-  const numericSizes = Array.from({ length: defaultMax }, (_, i) => {
-    const v = String(i + 1);
-    return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
-  }).join("");
-  const initialBase = isRemera
-    ? productBasePriceFor(product, defaultMaterial?.id || "peinado")
-    : productBasePriceFor(product, "");
-
   return `
-    <div class="two-col">
-      <section class="panel">
-        <div class="row">
-          <div class="pill">Personalizable</div>
-          <div class="price" id="basePriceTop">${formatMoney(initialBase)}</div>
+    <nav class="crumbs" aria-label="Estás en">
+      <a href="#/">Inicio</a><span aria-hidden="true">/</span>
+      <a href="#/" data-scroll="personalizar">Personalizar</a><span aria-hidden="true">/</span>
+      <span aria-current="page">${escapeHtml(product.name)}</span>
+    </nav>
+
+    <div class="pdp">
+      <div class="pdp-media" id="productMediaAnchor">
+        <div class="product-media">${renderThumbMedia(product)}</div>
+      </div>
+
+      <div class="pdp-info">
+        <h1 class="pdp-title">${escapeHtml(product.name)}</h1>
+        <p class="pdp-desc">${escapeHtml(product.description)}</p>
+        <div class="price-box">
+          <p class="pdp-price" id="estimatedTotal">${formatMoney(base + extra)}</p>
+          <dl class="price-breakdown">
+            <div><dt>Prenda</dt><dd id="basePriceSummary">${formatMoney(base)}</dd></div>
+            <div><dt>Estampa <span id="placementLabel">${escapeHtml(firstPlacement)}</span></dt><dd id="placementPrice">${formatMoney(extra)}</dd></div>
+          </dl>
         </div>
-        <div id="productMediaAnchor" class="thumb" data-label="${escapeHtml(product.type)}">
-          ${renderThumbMedia(product)}
-        </div>
-        <h1 class="panel-title">${escapeHtml(product.name)}</h1>
-        <p class="panel-subtitle">${escapeHtml(product.description)}</p>
 
-        <div class="divider"></div>
+        <form id="customForm" class="form" novalidate>
+          ${materialHtml}
 
-        <form id="customForm" class="form" autocomplete="off">
-          ${
-            isRemera
-              ? `
-          <div class="field">
-            <label for="material">Material</label>
-            <select id="material" name="material" required>${materialOptions}</select>
-          </div>
-          `
-              : ""
-          }
+          <fieldset class="field" id="sizeField" aria-describedby="sizeError">
+            <legend class="label">Talle</legend>
+            <div class="pill-options" id="sizeOptions">${renderSizePills(sizeOptionsFor(product, firstMaterial), "")}</div>
+            <p class="field-error" id="sizeError" hidden></p>
+          </fieldset>
 
-          <div class="field">
-            <label for="size">Talle</label>
-            <select id="size" name="size" required>${isRemera ? numericSizes : sizes}</select>
-          </div>
+          ${colorHtml}
 
-          <div class="field">
-            <label for="color">Color</label>
-            <select id="color" name="color" required>${colors}</select>
-          </div>
+          <fieldset class="field">
+            <legend class="label">Ubicación de la estampa</legend>
+            <div class="option-cards">${placementHtml}</div>
+          </fieldset>
 
-          <div class="field">
-            <label for="placement">Ubicación de la estampa</label>
-            <select id="placement" name="placement" required>${placements}</select>
-          </div>
-
-          <div class="field">
-            <label for="style">Tipo</label>
-            <select id="style" name="style" required>
-              <option value="text">Texto</option>
-              <option value="upload">Subir diseño</option>
-            </select>
-          </div>
-
-          <div class="field full" id="textField">
-            <label for="text">Texto</label>
-            <input id="text" name="text" placeholder="Ej: BATY" maxlength="24" />
-            <div class="hint">Máximo 24 caracteres. La vista previa es referencial.</div>
-          </div>
-
-          <div class="field full" id="uploadField" style="display:none">
-            <label for="file">Archivo</label>
-            <input id="file" name="file" type="file" accept="image/*" />
-            <div class="hint">Se sube automáticamente y se envía el link en el pedido.</div>
-          </div>
-
-          <div class="field full">
-            <label for="notes">Notas</label>
-            <textarea id="notes" name="notes" placeholder="Contanos cualquier detalle..."></textarea>
-          </div>
-
-          <div class="field full">
-            <div class="row">
-              <button class="btn" type="button" id="backToCatalog">Volver</button>
-              <button class="btn btn-primary" type="submit">Agregar al carrito</button>
+          <fieldset class="field">
+            <legend class="label">Qué estampamos</legend>
+            <div class="segmented">
+              <label><input type="radio" name="style" value="text" checked /><span>Texto</span></label>
+              <label><input type="radio" name="style" value="upload" /><span>Mi imagen</span></label>
             </div>
+          </fieldset>
+
+          <div class="field" id="textField">
+            <label class="label" for="text">Tu texto</label>
+            <input id="text" name="text" type="text" maxlength="24" autocomplete="off" placeholder="Ej.: tu nombre o una frase" aria-describedby="textHelp textError" />
+            <div class="field-foot">
+              <span class="hint" id="textHelp">Hasta 24 caracteres.</span>
+              <span class="counter" id="textCount" aria-hidden="true">0/24</span>
+            </div>
+            <p class="field-error" id="textError" hidden></p>
           </div>
+
+          <div class="field" id="uploadField" hidden>
+            <span class="label" id="fileLabel">Tu imagen</span>
+            <input class="sr-only file-input" id="file" name="file" type="file" accept="image/*" aria-labelledby="fileLabel" aria-describedby="fileName fileError" />
+            <label class="dropzone" for="file">
+              ${icon("upload", "icon icon-lg")}
+              <span class="dropzone-title" id="fileName">Elegí una imagen</span>
+              <span class="dropzone-hint">PNG o JPG en buena calidad. La revisamos antes de producir.</span>
+            </label>
+            <p class="field-error" id="fileError" hidden></p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="notes">Notas <span class="optional">(opcional)</span></label>
+            <textarea id="notes" name="notes" rows="3" placeholder="Tipografía, tamaño, colores o lo que quieras aclarar"></textarea>
+          </div>
+
+          <p class="form-error" id="formError" role="alert" hidden></p>
+
+          <button class="btn btn-primary btn-lg btn-block" type="submit" id="customSubmit">
+            ${icon("bag")}<span class="btn-label">Agregar al carrito · <span id="submitPrice">${formatMoney(base + extra)}</span></span>
+          </button>
         </form>
-      </section>
-
-      <aside class="panel summary-panel">
-        <h2 class="panel-title">Resumen</h2>
-        <p class="panel-subtitle">Calculamos el total con la personalización elegida.</p>
-        <div class="divider"></div>
-
-        <div class="line">
-          <div>
-            <div class="line-title">Producto</div>
-            <div class="line-sub">${escapeHtml(product.type)}</div>
-          </div>
-          <div class="mono" id="basePriceSummary">${formatMoney(initialBase)}</div>
-        </div>
-        <div class="line">
-          <div>
-            <div class="line-title">Personalización</div>
-            <div class="line-sub" id="placementLabel">—</div>
-          </div>
-          <div class="mono" id="placementPrice">${formatMoney(0)}</div>
-        </div>
-        <div class="line">
-          <div>
-            <div class="line-title">Total estimado</div>
-            <div class="line-sub">Sin envío</div>
-          </div>
-          <div class="mono" id="estimatedTotal">${formatMoney(initialBase)}</div>
-        </div>
-
-        <div class="notice" style="margin-top:12px">
-          <div class="notice-title">Pago total</div>
-          <p class="notice-text">El total final se paga por transferencia al confirmar el pedido.</p>
-        </div>
-      </aside>
+      </div>
     </div>
   `;
 }
@@ -1468,166 +1483,193 @@ async function uploadDesignToCloudinary(file) {
 function attachProductHandlers(productId) {
   const product = findProduct(productId);
   if (!product) return;
-
   const form = document.getElementById("customForm");
-  const materialSelect = document.getElementById("material");
-  const sizeSelect = document.getElementById("size");
-  const colorSelect = document.getElementById("color");
-  const placementSelect = document.getElementById("placement");
-  const styleSelect = document.getElementById("style");
-  const textField = document.getElementById("textField");
-  const uploadField = document.getElementById("uploadField");
-  const placementLabel = document.getElementById("placementLabel");
-  const placementPriceEl = document.getElementById("placementPrice");
-  const basePriceTopEl = document.getElementById("basePriceTop");
-  const basePriceSummaryEl = document.getElementById("basePriceSummary");
-  const estimatedTotalEl = document.getElementById("estimatedTotal");
-  const backBtn = document.getElementById("backToCatalog");
+  if (!(form instanceof HTMLFormElement)) return;
 
   const isRemera = product.type === "Remera";
+  const byId = (id) => document.getElementById(id);
+  const sizeOptions = byId("sizeOptions");
+  const sizeField = byId("sizeField");
+  const sizeError = byId("sizeError");
+  const textField = byId("textField");
+  const textInput = byId("text");
+  const textCount = byId("textCount");
+  const textError = byId("textError");
+  const uploadField = byId("uploadField");
+  const fileInput = byId("file");
+  const fileName = byId("fileName");
+  const fileError = byId("fileError");
+  const formError = byId("formError");
+  const submitBtn = byId("customSubmit");
+  const dropzone = form.querySelector(".dropzone");
 
-  if (window.matchMedia("(max-width: 900px)").matches) {
-    setTimeout(() => {
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    }, 50);
-  }
+  const checked = (name) => {
+    const el = form.querySelector(`input[name="${name}"]:checked`);
+    return el instanceof HTMLInputElement ? el.value : "";
+  };
+  const currentMaterial = () => (isRemera ? checked("material") || MATERIALS[0]?.id || "peinado" : "");
+  const setText = (id, text) => {
+    const el = byId(id);
+    if (el) el.textContent = text;
+  };
 
-  function refreshNumericSizes() {
-    if (!isRemera) return;
-    if (!(materialSelect instanceof HTMLSelectElement)) return;
-    if (!(sizeSelect instanceof HTMLSelectElement)) return;
-
-    const materialId = String(materialSelect.value || "").trim();
-    const mat = MATERIALS.find((m) => m.id === materialId) || MATERIALS[0];
-    const max = mat?.maxSize ?? 6;
-    const previous = Number(sizeSelect.value);
-
-    sizeSelect.innerHTML = Array.from({ length: max }, (_, i) => {
-      const v = String(i + 1);
-      return `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
-    }).join("");
-
-    if (Number.isFinite(previous) && previous >= 1 && previous <= max) {
-      sizeSelect.value = String(previous);
-    }
+  function refreshSizes() {
+    if (!isRemera || !sizeOptions) return;
+    const previous = checked("size");
+    const sizes = sizeOptionsFor(product, currentMaterial());
+    sizeOptions.innerHTML = renderSizePills(sizes, sizes.includes(previous) ? previous : "");
   }
 
   function refreshPricing() {
-    const materialId = isRemera ? String(materialSelect?.value || "peinado").trim() : "";
-    const base = productBasePriceFor(product, materialId);
-    const placement = placementSelect.value;
+    const base = productBasePriceFor(product, currentMaterial());
+    const placement = checked("placement");
     const extra = placementPrice(placement);
-    const estimated = base + extra;
-    if (placementLabel) placementLabel.textContent = placement;
-    if (placementPriceEl) placementPriceEl.textContent = formatMoney(extra);
-    if (estimatedTotalEl) estimatedTotalEl.textContent = formatMoney(estimated);
-    if (basePriceTopEl) basePriceTopEl.textContent = formatMoney(base);
-    if (basePriceSummaryEl) basePriceSummaryEl.textContent = formatMoney(base);
+    setText("basePriceSummary", formatMoney(base));
+    setText("placementLabel", placement);
+    setText("placementPrice", formatMoney(extra));
+    setText("estimatedTotal", formatMoney(base + extra));
+    setText("submitPrice", formatMoney(base + extra));
   }
 
-  function refreshCustomizationMode() {
-    const mode = String(styleSelect?.value || "text");
-    if (mode === "upload") {
-      if (textField) textField.style.display = "none";
-      if (uploadField) uploadField.style.display = "";
-    } else {
-      if (textField) textField.style.display = "";
-      if (uploadField) uploadField.style.display = "none";
-    }
+  function refreshMode() {
+    const upload = checked("style") === "upload";
+    if (textField) textField.hidden = upload;
+    if (uploadField) uploadField.hidden = !upload;
+    if (formError) formError.hidden = true;
   }
 
-  if (placementSelect) placementSelect.addEventListener("change", refreshPricing);
-  if (styleSelect) styleSelect.addEventListener("change", refreshCustomizationMode);
-  if (materialSelect) {
-    materialSelect.addEventListener("change", () => {
-      refreshNumericSizes();
+  function showFile() {
+    const file = fileInput instanceof HTMLInputElement ? fileInput.files?.[0] : null;
+    if (fileName) fileName.textContent = file ? file.name : "Elegí una imagen";
+    dropzone?.classList.toggle("has-file", Boolean(file));
+    if (file) setFieldError(uploadField, fileError, "");
+  }
+
+  form.addEventListener("change", (ev) => {
+    const t = ev.target;
+    if (!(t instanceof HTMLInputElement)) return;
+    if (t.name === "material") {
+      refreshSizes();
       refreshPricing();
+    } else if (t.name === "placement") refreshPricing();
+    else if (t.name === "style") refreshMode();
+    else if (t.name === "color") setText("colorValue", t.value);
+    else if (t.name === "size") setFieldError(sizeField, sizeError, "");
+    else if (t.name === "file") showFile();
+  });
+
+  if (textInput instanceof HTMLInputElement) {
+    textInput.addEventListener("input", () => {
+      if (textCount) textCount.textContent = `${textInput.value.length}/24`;
+      if (textInput.value.trim()) setFieldError(textField, textError, "");
     });
   }
-  if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
 
-  refreshNumericSizes();
-  refreshCustomizationMode();
+  // Arrastrar y soltar la imagen sobre el recuadro
+  if (dropzone && fileInput instanceof HTMLInputElement) {
+    const stop = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+    };
+    ["dragenter", "dragover"].forEach((type) =>
+      dropzone.addEventListener(type, (ev) => {
+        stop(ev);
+        dropzone.classList.add("is-dragover");
+      }),
+    );
+    ["dragleave", "drop"].forEach((type) =>
+      dropzone.addEventListener(type, (ev) => {
+        stop(ev);
+        dropzone.classList.remove("is-dragover");
+      }),
+    );
+    dropzone.addEventListener("drop", (ev) => {
+      const files = ev.dataTransfer?.files;
+      if (!files || !files.length) return;
+      if (!String(files[0].type || "").startsWith("image/")) {
+        setFieldError(uploadField, fileError, "Ese archivo no es una imagen. Probá con PNG o JPG.");
+        return;
+      }
+      fileInput.files = files;
+      showFile();
+    });
+  }
+
+  refreshSizes();
+  refreshMode();
   refreshPricing();
+
+  const submitLabel = submitBtn ? submitBtn.innerHTML : "";
+  let busy = false;
+
+  function setBusy(on, label) {
+    if (!(submitBtn instanceof HTMLButtonElement)) return;
+    submitBtn.disabled = on;
+    submitBtn.setAttribute("aria-busy", String(on));
+    submitBtn.innerHTML = on ? `<span class="spinner" aria-hidden="true"></span><span class="btn-label">${label}</span>` : submitLabel;
+  }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (busy) return;
+    if (formError) formError.hidden = true;
 
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const submitLabel = submitBtn ? submitBtn.textContent : "";
+    const fd = new FormData(form);
+    const material = isRemera ? String(fd.get("material") || "").trim() : "";
+    const size = String(fd.get("size") || "").trim();
+    const color = String(fd.get("color") || "").trim();
+    const placement = String(fd.get("placement") || "").trim();
+    const style = String(fd.get("style") || "text").trim();
+    const text = String(fd.get("text") || "").trim();
+    const notes = String(fd.get("notes") || "").trim();
+    const file = fd.get("file");
 
+    const invalid = [];
+    if (!sizeOptionsFor(product, material).includes(size)) {
+      setFieldError(sizeField, sizeError, "Elegí un talle.");
+      invalid.push(sizeField?.querySelector("input"));
+    } else setFieldError(sizeField, sizeError, "");
+
+    if (style === "upload") {
+      if (!(file instanceof File) || !file.name) {
+        setFieldError(uploadField, fileError, "Elegí la imagen que querés estampar.");
+        invalid.push(fileInput);
+      } else if (file.type && !file.type.startsWith("image/")) {
+        setFieldError(uploadField, fileError, "Ese archivo no es una imagen. Probá con PNG o JPG.");
+        invalid.push(fileInput);
+      }
+    } else if (!text) {
+      setFieldError(textField, textError, "Escribí el texto que querés estampar.");
+      invalid.push(textInput);
+    }
+
+    if (invalid.length) {
+      focusField(invalid[0]);
+      return;
+    }
+
+    const base = productBasePriceFor(product, material);
+    const extras = placementPrice(placement);
+    const materialLabel = isRemera ? materialLabelFor(material) : "";
+
+    busy = true;
+    setBusy(true, style === "upload" ? "Subiendo imagen..." : "Procesando...");
     try {
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = "Procesando...";
-      }
-
-      const fd = new FormData(form);
-      const material = String(fd.get("material") || "").trim();
-      const size = String(fd.get("size") || "").trim();
-      const color = String(fd.get("color") || "").trim();
-      const placement = String(fd.get("placement") || "").trim();
-      const style = String(fd.get("style") || "text").trim();
-      const text = String(fd.get("text") || "").trim();
-      const notes = String(fd.get("notes") || "").trim();
-      const file = fd.get("file");
-
-      if (isRemera && !material) {
-        alert("Elegí el material.");
-        return;
-      }
-
-      const base = productBasePriceFor(product, isRemera ? material : "");
-      const extras = placementPrice(placement);
-
+      let customization;
       if (style === "upload") {
-        if (!(file instanceof File) || !file.name) {
-          alert("Elegí un archivo de imagen para subir.");
-          return;
-        }
-
-        if (submitBtn) submitBtn.textContent = "Subiendo diseño...";
-
         const uploaded = await uploadDesignToCloudinary(file);
-        const customization = {
+        customization = {
           type: "upload",
           placement,
-          material: isRemera ? material : "",
+          material: materialLabel,
           fileName: uploaded.fileName || file.name,
           fileUrl: uploaded.url,
           filePublicId: uploaded.publicId,
           notes,
         };
-
-        const cart = getCart();
-        cart.push({
-          id: makeId("item"),
-          productId: product.id,
-          productName: product.name,
-          variant: { size, color },
-          customization,
-          quantity: 1,
-          unitPrice: base,
-          extrasPrice: extras,
-          createdAt: Date.now(),
-        });
-        setCart(cart);
-        navigate("#/carrito");
-        return;
+      } else {
+        customization = { type: "text", placement, text, material: materialLabel, notes };
       }
-
-      if (!text) {
-        alert("Escribí el texto para la estampa.");
-        return;
-      }
-
-      const customization = {
-        type: "text",
-        placement,
-        text,
-        material: isRemera ? material : "",
-        notes,
-      };
 
       const cart = getCart();
       cart.push({
@@ -1643,333 +1685,348 @@ function attachProductHandlers(productId) {
       });
       setCart(cart);
       navigate("#/carrito");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo procesar la acción.";
-      alert(msg);
-    } finally {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = submitLabel;
+    } catch {
+      if (formError) {
+        formError.textContent =
+          style === "upload"
+            ? "No pudimos subir tu imagen. Probá de nuevo en un rato o mandánosla por WhatsApp."
+            : "No pudimos agregar el producto. Probá de nuevo.";
+        formError.hidden = false;
       }
+    } finally {
+      busy = false;
+      setBusy(false);
     }
   });
 }
 
+function renderUndoNotice() {
+  if (!lastRemoved) return "";
+  return `
+    <div class="notice" role="status">
+      <span>Quitaste <strong>${escapeHtml(cartItemTitle(lastRemoved.item))}</strong> del carrito.</span>
+      <button class="link-btn" type="button" id="undoRemove">Deshacer</button>
+    </div>`;
+}
+
 function renderCart() {
   const cart = getCart();
+
   if (cart.length === 0) {
     return `
-      <section class="panel">
-        <h1 class="panel-title">Carrito</h1>
-        <p class="panel-subtitle">Todavía no agregaste productos.</p>
-        <div class="row">
-          <button class="btn btn-primary" id="goCatalog">Ir al catálogo</button>
+      ${renderUndoNotice()}
+      <section class="empty">
+        <span class="empty-icon">${icon("bag", "icon icon-xl")}</span>
+        <h1 class="empty-title">Tu carrito está vacío</h1>
+        <p class="empty-text">Elegí un diseño de la casa o personalizá tu prenda.</p>
+        <div class="empty-actions">
+          <a class="btn btn-primary" href="#/" data-scroll="disenos">Ver diseños</a>
+          <a class="btn btn-ghost" href="#/producto/remera-basica">Personalizar</a>
         </div>
       </section>
     `;
   }
 
-  const lines = cart
+  const count = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const totals = computeCartTotals(cart, { shippingMethod: "pickup" });
+
+  const itemsHtml = cart
     .map((item) => {
-      const sizeLabel = escapeHtml(item.variant?.size || "");
-      const colorLabel = escapeHtml(item.variant?.color || "");
-      const placementLabel = escapeHtml(item.customization?.placement || "");
-      const materialRaw = String(item.customization?.material || "").trim();
-      const materialLabel = materialRaw ? ` • ${escapeHtml(materialRaw)}` : "";
-
-      const kind = String(item.customization?.type || "");
-
-      let subLabel = `${sizeLabel} • ${colorLabel}`;
-      let customLabel = "";
-
-      if (kind === "house") {
-        const name = escapeHtml(item.customization?.designName || "Diseño de la casa");
-        const designId = escapeHtml(item.customization?.designId || "");
-        const materialRaw = String(item.customization?.material || "").trim();
-        const materialPart = materialRaw ? ` • ${escapeHtml(materialRaw)}` : "";
-        customLabel = `Diseño: ${name}${designId ? ` (ID: ${designId})` : ""}`;
-        subLabel = `${subLabel} • Diseño de la casa${materialPart}`;
-      } else if (kind === "upload") {
-        const fileUrl = String(item.customization?.fileUrl || "").trim();
-        const fileName = escapeHtml(item.customization?.fileName || "archivo");
-        customLabel = fileUrl
-          ? `Diseño: <a href="${escapeHtml(fileUrl)}" target="_blank" rel="noreferrer">${fileName}</a>`
-          : `Diseño: ${fileName}`;
-        if (placementLabel) subLabel = `${subLabel}${materialLabel} • ${placementLabel}`;
-        else subLabel = `${subLabel}${materialLabel}`;
-      } else {
-        const text = escapeHtml(item.customization?.text || "");
-        customLabel = `Texto: “${text}”`;
-        if (placementLabel) subLabel = `${subLabel}${materialLabel} • ${placementLabel}`;
-        else subLabel = `${subLabel}${materialLabel}`;
-      }
-
+      const id = escapeHtml(item.id);
+      const qty = Number(item.quantity) || 1;
+      const title = cartItemTitle(item);
+      const unit = (Number(item.unitPrice) || 0) + (Number(item.extrasPrice) || 0);
+      const notes = String(item?.customization?.notes || "").trim();
       return `
-        <div class="line">
-          <div style="min-width:0">
-            <div class="line-title">${escapeHtml(item.productName)}</div>
-            <div class="line-sub">${subLabel}</div>
-            <div class="line-sub">${customLabel}</div>
-            ${
-              item.customization?.notes
-                ? `<div class="line-sub">Notas: ${escapeHtml(item.customization.notes)}</div>`
-                : ""
-            }
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
-            <div class="mono">${formatMoney(computeItemTotal(item))}</div>
-            <div class="row" style="justify-content:flex-end">
-              <button class="btn" data-dec="${escapeHtml(item.id)}">-</button>
-              <div class="mono">${escapeHtml(item.quantity)}</div>
-              <button class="btn" data-inc="${escapeHtml(item.id)}">+</button>
-              <button class="btn btn-danger" data-rm="${escapeHtml(item.id)}">Quitar</button>
+        <article class="cart-item">
+          <div class="cart-thumb">${cartItemThumb(item)}</div>
+          <div class="cart-info">
+            <h2 class="cart-title">${escapeHtml(title)}</h2>
+            <p class="cart-meta">${escapeHtml(cartItemDetails(item))}</p>
+            <p class="cart-custom">${escapeHtml(cartItemCustom(item))}</p>
+            ${notes ? `<p class="cart-notes">Notas: ${escapeHtml(notes)}</p>` : ""}
+            <div class="cart-controls">
+              <div class="qty" role="group" aria-label="Cantidad de ${escapeHtml(title)}">
+                <button class="qty-btn" type="button" data-dec="${id}" aria-label="Restar uno"${qty <= 1 ? " disabled" : ""}>${icon("minus")}</button>
+                <output class="qty-value" aria-live="polite">${qty}</output>
+                <button class="qty-btn" type="button" data-inc="${id}" aria-label="Sumar uno"${qty >= 99 ? " disabled" : ""}>${icon("plus")}</button>
+              </div>
+              <button class="link-btn link-btn-muted" type="button" data-rm="${id}">Quitar</button>
             </div>
           </div>
-        </div>
-      `;
+          <p class="cart-line-total">
+            ${formatMoney(computeItemTotal(item))}
+            ${qty > 1 ? `<span class="cart-unit">${formatMoney(unit)} c/u</span>` : ""}
+          </p>
+        </article>`;
     })
     .join("");
 
-  const totals = computeCartTotals(cart, { shippingMethod: "pickup" });
-
   return `
-    <div class="two-col">
-      <section class="panel">
-        <h1 class="panel-title">Carrito</h1>
-        <p class="panel-subtitle">Revisá tu pedido antes de continuar.</p>
-        <div class="divider"></div>
-        ${lines}
-        <div class="divider"></div>
-        <div class="row">
-          <button class="btn" id="goCatalog">Seguir comprando</button>
-          <button class="btn btn-primary" id="goCheckout">Ir al checkout</button>
-        </div>
-      </section>
-
-      <aside class="panel summary-panel">
-        <h2 class="panel-title">Totales</h2>
-        <p class="panel-subtitle">El envío se calcula en el checkout.</p>
-        <div class="divider"></div>
-        <div class="line">
-          <div class="line-title">Subtotal</div>
-          <div class="mono">${formatMoney(totals.itemsSubtotal)}</div>
-        </div>
-        <div class="notice" style="margin-top:12px">
-          <div class="notice-title">Pago total</div>
-          <p class="notice-text">Al confirmar, abonás el total por transferencia.</p>
-        </div>
+    <div class="page-head">
+      <h1 class="page-title">Tu carrito</h1>
+      <p class="page-sub">${count} ${count === 1 ? "producto" : "productos"}</p>
+    </div>
+    ${renderUndoNotice()}
+    <div class="checkout-layout">
+      <section class="cart-list" aria-label="Productos del carrito">${itemsHtml}</section>
+      <aside class="summary" aria-label="Resumen">
+        <h2 class="summary-title">Resumen</h2>
+        <dl class="totals">
+          <div><dt>Subtotal</dt><dd>${formatMoney(totals.itemsSubtotal)}</dd></div>
+          <div><dt>Envío</dt><dd class="muted">Se elige en el siguiente paso</dd></div>
+          <div class="totals-total"><dt>Total</dt><dd>${formatMoney(totals.itemsSubtotal)}</dd></div>
+        </dl>
+        <button class="btn btn-primary btn-lg btn-block" type="button" id="goCheckout">Continuar con el pedido ${icon("arrowRight")}</button>
+        <button class="btn btn-ghost btn-block" type="button" id="goCatalog">Seguir comprando</button>
+        <p class="summary-note">${icon("card")}<span>Al generar el pedido te mostramos los datos para transferir.</span></p>
       </aside>
     </div>
   `;
 }
 
 function attachCartHandlers() {
-  const cart = getCart();
+  const root = document.getElementById("app");
+  if (!root) return;
 
-  const goCatalog = document.getElementById("goCatalog");
-  const goCheckout = document.getElementById("goCheckout");
-  if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
-  if (goCheckout) goCheckout.addEventListener("click", () => navigate("#/checkout"));
+  document.getElementById("goCheckout")?.addEventListener("click", () => navigate("#/checkout"));
 
-  function updateQty(itemId, delta) {
-    const next = getCart()
-      .map((item) => {
-        if (item.id !== itemId) return item;
-        const qty = clampNumber(item.quantity + delta, 1, 99);
-        return { ...item, quantity: qty };
-      });
-    setCart(next);
+  document.getElementById("undoRemove")?.addEventListener("click", () => {
+    if (!lastRemoved) return;
+    const cart = getCart();
+    cart.splice(Math.min(lastRemoved.index, cart.length), 0, lastRemoved.item);
+    const restoredId = lastRemoved.item.id;
+    lastRemoved = null;
+    setCart(cart);
     render();
-  }
-
-  function removeItem(itemId) {
-    const next = getCart().filter((i) => i.id !== itemId);
-    setCart(next);
-    render();
-  }
-
-  document.querySelectorAll("[data-inc]").forEach((btn) => {
-    btn.addEventListener("click", (e) => updateQty(e.currentTarget.getAttribute("data-inc"), 1));
+    const again = document.querySelector(`[data-rm="${CSS.escape(String(restoredId))}"]`);
+    if (again instanceof HTMLElement) again.focus();
   });
-  document.querySelectorAll("[data-dec]").forEach((btn) => {
-    btn.addEventListener("click", (e) => updateQty(e.currentTarget.getAttribute("data-dec"), -1));
-  });
-  document.querySelectorAll("[data-rm]").forEach((btn) => {
-    btn.addEventListener("click", (e) => removeItem(e.currentTarget.getAttribute("data-rm")));
+
+  root.querySelectorAll("[data-inc], [data-dec], [data-rm]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const inc = btn.getAttribute("data-inc");
+      const dec = btn.getAttribute("data-dec");
+      const rm = btn.getAttribute("data-rm");
+      const id = inc || dec || rm;
+      const cart = getCart();
+      const index = cart.findIndex((item) => item.id === id);
+      if (index < 0) return;
+
+      let focusTargets;
+      if (rm) {
+        lastRemoved = { item: cart[index], index };
+        cart.splice(index, 1);
+        focusTargets = ["#undoRemove"];
+      } else {
+        const item = cart[index];
+        item.quantity = clampNumber((Number(item.quantity) || 1) + (inc ? 1 : -1), 1, 99);
+        const key = CSS.escape(String(id));
+        focusTargets = inc ? [`[data-inc="${key}"]`, `[data-dec="${key}"]`] : [`[data-dec="${key}"]`, `[data-inc="${key}"]`];
+      }
+
+      setCart(cart);
+      render();
+
+      // Mantener el foco en el control que se usó (el carrito se vuelve a dibujar)
+      for (const sel of focusTargets) {
+        const el = document.querySelector(sel);
+        if (el instanceof HTMLButtonElement && !el.disabled) {
+          el.focus();
+          break;
+        }
+      }
+    });
   });
 }
 
 function renderCheckout() {
   const cart = getCart();
-  if (cart.length === 0) {
-    return `
-      <section class="panel">
-        <h1 class="panel-title">Checkout</h1>
-        <p class="panel-subtitle">Tu carrito está vacío.</p>
-        <div class="row">
-          <button class="btn btn-primary" id="goCatalog">Ir al catálogo</button>
-        </div>
-      </section>
-    `;
-  }
+  if (cart.length === 0) return renderCart();
 
-  const previewTotals = computeCartTotals(cart, { shippingMethod: "pickup" });
   const ship = shippingConfig();
+  const totals = computeCartTotals(cart, { shippingMethod: "pickup" });
+  const deliveryPrice = ship.deliveryFlatRate > 0 ? `+${formatMoney(ship.deliveryFlatRate)}` : "A coordinar";
+
+  const field = (id, label, attrs, extra = "") => `
+    <div class="field">
+      <label class="label" for="${id}">${label}</label>
+      <input id="${id}" name="${id}" ${attrs} aria-describedby="${id}Error" />
+      ${extra}
+      <p class="field-error" id="${id}Error" hidden></p>
+    </div>`;
 
   return `
-    <div class="two-col">
-      <section class="panel">
-        <h1 class="panel-title">Checkout</h1>
-        <p class="panel-subtitle">Completá tus datos para generar el pedido.</p>
-        <div class="divider"></div>
+    ${renderCheckoutSteps(1)}
+    <div class="page-head">
+      <h1 class="page-title">Completá tu pedido</h1>
+      <p class="page-sub">Con estos datos armamos el pedido y te contactamos por WhatsApp.</p>
+    </div>
 
-        <form id="checkoutForm" class="form" autocomplete="on">
+    <div class="checkout-layout">
+      <form id="checkoutForm" class="form checkout-form" novalidate>
+        <section class="form-section">
+          <h2 class="form-section-title">Tus datos</h2>
+          <div class="field-grid">
+            ${field("name", "Nombre y apellido", 'type="text" autocomplete="name" required')}
+            ${field(
+              "whatsapp",
+              "WhatsApp",
+              'type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej.: 3442 123456" required',
+              '<p class="hint">Te escribimos a este número para confirmar.</p>',
+            )}
+            ${field("email", 'Email <span class="optional">(opcional)</span>', 'type="email" inputmode="email" autocomplete="email"')}
+            ${field("city", "Ciudad", 'type="text" autocomplete="address-level2" required')}
+          </div>
+        </section>
+
+        <fieldset class="form-section">
+          <legend class="form-section-title">Entrega</legend>
+          <div class="option-cards option-cards-wide">
+            <label class="option-card">
+              <input type="radio" name="shippingMethod" value="pickup" checked />
+              <span class="option-card-body">
+                ${icon("store")}
+                <span class="option-card-title">${escapeHtml(ship.pickupLabel)}</span>
+                <span class="option-card-meta">Sin cargo</span>
+              </span>
+            </label>
+            <label class="option-card">
+              <input type="radio" name="shippingMethod" value="delivery" />
+              <span class="option-card-body">
+                ${icon("truck")}
+                <span class="option-card-title">${escapeHtml(ship.deliveryLabel)}</span>
+                <span class="option-card-meta">${deliveryPrice}</span>
+              </span>
+            </label>
+          </div>
+          <div id="addressField" hidden>
+            ${field("address", "Dirección de entrega", 'type="text" autocomplete="street-address" placeholder="Calle, número, piso y depto."')}
+          </div>
+        </fieldset>
+
+        <section class="form-section">
+          <h2 class="form-section-title">Notas</h2>
           <div class="field">
-            <label for="name">Nombre y apellido</label>
-            <input id="name" name="name" required placeholder="Ej: Camila Pérez" />
+            <label class="label" for="notes">¿Algo más que tengamos que saber? <span class="optional">(opcional)</span></label>
+            <textarea id="notes" name="notes" rows="3" placeholder="Horarios para el retiro, referencias de la dirección…"></textarea>
           </div>
-          <div class="field">
-            <label for="whatsapp">WhatsApp</label>
-            <input id="whatsapp" name="whatsapp" required placeholder="Ej: 11 2345 6789" />
-          </div>
+        </section>
+      </form>
 
-          <div class="field">
-            <label for="email">Email (opcional)</label>
-            <input id="email" name="email" type="email" placeholder="Ej: hola@correo.com" />
-          </div>
-          <div class="field">
-            <label for="city">Ciudad</label>
-            <input id="city" name="city" required placeholder="Ej: CABA" />
-          </div>
-
-          <div class="field full">
-            <label for="shippingMethod">Entrega</label>
-            <select id="shippingMethod" name="shippingMethod" required>
-              <option value="pickup">${escapeHtml(ship.pickupLabel)}</option>
-              <option value="delivery">${escapeHtml(ship.deliveryLabel)} (+${formatMoney(
-                ship.deliveryFlatRate,
-              )})</option>
-            </select>
-          </div>
-
-          <div class="field full" id="addressField" style="display:none">
-            <label for="address">Dirección</label>
-            <textarea id="address" name="address" placeholder="Calle, número, piso, entre calles..."></textarea>
-          </div>
-
-          <div class="field full">
-            <label for="notes">Notas para el pedido</label>
-            <textarea id="notes" name="notes" placeholder="Horario para retirar/recibir, aclaraciones..."></textarea>
-          </div>
-
-          <div class="field full">
-            <div class="row">
-              <button class="btn" type="button" id="backToCart">Volver al carrito</button>
-              <button class="btn btn-primary" type="submit">Generar pedido</button>
-            </div>
-          </div>
-        </form>
-      </section>
-
-      <aside class="panel summary-panel">
-        <h2 class="panel-title">Resumen</h2>
-        <p class="panel-subtitle">Calculamos el total del pedido.</p>
-        <div class="divider"></div>
-        <div id="totalsBox">
-          <div class="line">
-            <div class="line-title">Subtotal</div>
-            <div class="mono" id="subtotalVal">${formatMoney(previewTotals.itemsSubtotal)}</div>
-          </div>
-          <div class="line">
-            <div class="line-title">Envío</div>
-            <div class="mono" id="shippingVal">${formatMoney(0)}</div>
-          </div>
-          <div class="line">
-            <div>
-              <div class="line-title">Total</div>
-              <div class="line-sub">Precios en ARS</div>
-            </div>
-            <div class="mono" id="totalVal">${formatMoney(previewTotals.total)}</div>
-          </div>
-        </div>
+      <aside class="summary" aria-label="Tu pedido">
+        <h2 class="summary-title">Tu pedido</h2>
+        <ul class="mini-list">${renderMiniItems(cart)}</ul>
+        <dl class="totals">
+          <div><dt>Subtotal</dt><dd id="subtotalVal">${formatMoney(totals.itemsSubtotal)}</dd></div>
+          <div><dt>Envío</dt><dd id="shippingVal">Sin cargo</dd></div>
+          <div class="totals-total"><dt>Total</dt><dd id="totalVal">${formatMoney(totals.total)}</dd></div>
+        </dl>
+        <button class="btn btn-primary btn-lg btn-block" type="submit" form="checkoutForm">Generar pedido ${icon("arrowRight")}</button>
+        <button class="btn btn-ghost btn-block" type="button" id="backToCart">${icon("arrowLeft")}Volver al carrito</button>
+        <p class="summary-note">${icon("card")}<span>Después te mostramos los datos para transferir.</span></p>
       </aside>
     </div>
   `;
 }
 
 function attachCheckoutHandlers() {
-  const cart = getCart();
-  const goCatalog = document.getElementById("goCatalog");
-  if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
-  if (cart.length === 0) return;
-
+  document.getElementById("backToCart")?.addEventListener("click", () => navigate("#/carrito"));
   const form = document.getElementById("checkoutForm");
-  const shippingMethod = document.getElementById("shippingMethod");
+  if (!(form instanceof HTMLFormElement)) return;
+
   const addressField = document.getElementById("addressField");
-  const address = document.getElementById("address");
-  const subtotalVal = document.getElementById("subtotalVal");
-  const shippingVal = document.getElementById("shippingVal");
-  const totalVal = document.getElementById("totalVal");
-  const backToCart = document.getElementById("backToCart");
+  const FIELDS = ["name", "whatsapp", "email", "city", "address"];
 
-  function refreshTotals() {
-    const method = shippingMethod.value;
-    const totals = computeCartTotals(cart, { shippingMethod: method });
-    subtotalVal.textContent = formatMoney(totals.itemsSubtotal);
-    shippingVal.textContent = formatMoney(totals.shippingCost);
-    totalVal.textContent = formatMoney(totals.total);
-  }
+  const method = () => {
+    const el = form.querySelector('input[name="shippingMethod"]:checked');
+    return el instanceof HTMLInputElement ? el.value : "pickup";
+  };
+  const valueOf = (id) => {
+    const el = document.getElementById(id);
+    return el instanceof HTMLInputElement ? el.value.trim() : "";
+  };
 
-  function refreshAddress() {
-    const method = shippingMethod.value;
-    if (method === "delivery") {
-      addressField.style.display = "";
-      address.required = true;
-    } else {
-      addressField.style.display = "none";
-      address.required = false;
-      address.value = "";
+  function errorFor(id) {
+    const value = valueOf(id);
+    if (id === "name" && !value) return "Escribí tu nombre.";
+    if (id === "whatsapp") {
+      if (!value) return "Necesitamos tu WhatsApp para confirmar el pedido.";
+      if (value.replace(/\D/g, "").length < 8) return "Revisá el número: tiene que tener al menos 8 dígitos.";
     }
+    if (id === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Revisá el email.";
+    if (id === "city" && !value) return "Escribí tu ciudad.";
+    if (id === "address" && method() === "delivery" && !value) return "Escribí la dirección de entrega.";
+    return "";
   }
 
-  backToCart.addEventListener("click", () => navigate("#/carrito"));
-  shippingMethod.addEventListener("change", () => {
-    refreshAddress();
-    refreshTotals();
+  function showError(id, message) {
+    const input = document.getElementById(id);
+    setFieldError(input?.closest(".field"), document.getElementById(`${id}Error`), message);
+  }
+
+  function refresh() {
+    const m = method();
+    if (addressField) addressField.hidden = m !== "delivery";
+    if (m !== "delivery") showError("address", "");
+    const totals = computeCartTotals(getCart(), { shippingMethod: m });
+    const set = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    set("subtotalVal", formatMoney(totals.itemsSubtotal));
+    set("shippingVal", shippingText(m, totals.shippingCost));
+    set("totalVal", formatMoney(totals.total));
+  }
+
+  form.addEventListener("change", (ev) => {
+    if (ev.target instanceof HTMLInputElement && ev.target.name === "shippingMethod") refresh();
   });
 
-  refreshAddress();
-  refreshTotals();
+  // Si un campo ya marcó error, se revisa de nuevo mientras se corrige
+  form.addEventListener("input", (ev) => {
+    const t = ev.target;
+    if (t instanceof HTMLInputElement && t.getAttribute("aria-invalid") === "true") showError(t.id, errorFor(t.id));
+  });
+
+  refresh();
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const fd = new FormData(form);
+    let firstInvalid = "";
+    for (const id of FIELDS) {
+      const message = errorFor(id);
+      showError(id, message);
+      if (message && !firstInvalid) firstInvalid = id;
+    }
+    if (firstInvalid) {
+      focusField(document.getElementById(firstInvalid));
+      return;
+    }
+
+    const cart = getCart();
+    if (cart.length === 0) {
+      navigate("#/carrito");
+      return;
+    }
+
+    const shippingMethod = method();
+    const notesEl = document.getElementById("notes");
     const checkout = {
-      name: String(fd.get("name") || "").trim(),
-      whatsapp: String(fd.get("whatsapp") || "").trim(),
-      email: String(fd.get("email") || "").trim(),
-      city: String(fd.get("city") || "").trim(),
-      shippingMethod: String(fd.get("shippingMethod") || "pickup"),
-      address: String(fd.get("address") || "").trim(),
-      notes: String(fd.get("notes") || "").trim(),
+      name: valueOf("name"),
+      whatsapp: valueOf("whatsapp"),
+      email: valueOf("email"),
+      city: valueOf("city"),
+      shippingMethod,
+      address: shippingMethod === "delivery" ? valueOf("address") : "",
+      notes: notesEl instanceof HTMLTextAreaElement ? notesEl.value.trim() : "",
     };
 
-    if (!checkout.name || !checkout.whatsapp || !checkout.city) {
-      alert("Completá nombre, WhatsApp y ciudad.");
-      return;
-    }
-
-    if (checkout.shippingMethod === "delivery" && !checkout.address) {
-      alert("Completá la dirección para el envío.");
-      return;
-    }
-
     const totals = computeCartTotals(cart, checkout);
-    const orderNumber = String(Date.now()).slice(-6);
     const orderId = makeId("order");
     const order = {
       id: orderId,
-      number: orderNumber,
+      number: String(Date.now()).slice(-6),
       status: "Pendiente de pago",
       createdAt: Date.now(),
       cart,
@@ -2094,211 +2151,254 @@ function buildWhatsappLink(message) {
 }
 
 function renderOrderConfirmation(orderId) {
-  const orders = getOrders();
-  const order = orders.find((o) => o.id === orderId);
+  const order = getOrders().find((o) => o && o.id === orderId);
   if (!order) {
     return `
-      <section class="panel">
-        <h1 class="panel-title">Pedido</h1>
-        <p class="panel-subtitle">No encontramos el pedido.</p>
-        <div class="row">
-          <button class="btn btn-primary" id="goCatalog">Ir al catálogo</button>
+      <section class="empty">
+        <span class="empty-icon">${icon("bag", "icon icon-xl")}</span>
+        <h1 class="empty-title">No encontramos ese pedido</h1>
+        <p class="empty-text">Puede que se haya generado en otro celular o navegador. Si ya nos lo mandaste por WhatsApp, lo tenemos.</p>
+        <div class="empty-actions">
+          <button class="btn btn-primary" type="button" id="goCatalog">Volver a la tienda</button>
         </div>
       </section>
     `;
   }
 
+  const cart = Array.isArray(order.cart) ? order.cart : [];
+  const totals = order.totals || { itemsSubtotal: 0, shippingCost: 0, total: 0 };
   const message = buildPaymentMessage(order);
-  const wa = buildWhatsappLink(message);
-  const { bank } = businessInfo();
-  const bankLines = [
-    ["Alias", bank.alias],
-    ["CVU/CBU", bank.cvuCbu],
-    ["Titular", bank.holder],
-    ["CUIT", bank.cuit],
-  ]
-    .filter(([, value]) => value)
-    .map(
-      ([label, value]) => `
-          <div class="line">
-            <div class="line-title">${label}</div>
-            <div class="mono">${escapeHtml(value)}</div>
-          </div>`,
-    )
-    .join("");
+  const { bank, hasBank } = businessInfo();
+  const reference = `Pedido #${order.number} - ${order.checkout?.name || ""}`;
+  const hasUpload = cart.some((item) => item?.customization?.type === "upload");
+
+  const copyRow = (label, value) => `
+    <div class="copy-row">
+      <dt>${label}</dt>
+      <dd>
+        <span class="copy-value">${escapeHtml(value)}</span>
+        <button class="icon-btn icon-btn-sm" type="button" data-copy="${escapeHtml(value)}" aria-label="Copiar ${label}">${icon("copy")}</button>
+      </dd>
+    </div>`;
+
+  const bankHtml = hasBank
+    ? `<dl class="bank">
+         ${[
+           ["Alias", bank.alias],
+           ["CVU/CBU", bank.cvuCbu],
+           ["Titular", bank.holder],
+           ["CUIT", bank.cuit],
+         ]
+           .filter(([, v]) => v)
+           .map(([label, v]) => copyRow(label, v))
+           .join("")}
+         ${copyRow("Referencia", reference)}
+       </dl>`
+    : `<p class="confirm-step-text">Escribinos por WhatsApp y te pasamos el alias para transferir.</p>`;
 
   return `
-    <div class="two-col">
-      <section class="panel">
-        <h1 class="panel-title">Pedido #${escapeHtml(order.number)}</h1>
-        <p class="panel-subtitle">
-          Estado: <span class="pill">${escapeHtml(order.status)}</span>
-        </p>
-        <div class="divider"></div>
+    ${renderCheckoutSteps(2)}
+    <header class="confirm-head">
+      <span class="confirm-icon">${icon("check", "icon icon-lg")}</span>
+      <div>
+        <h1 class="page-title">Pedido #${escapeHtml(order.number)} generado</h1>
+        <p class="page-sub">Faltan dos pasos para confirmarlo.</p>
+      </div>
+    </header>
 
-        <div class="notice">
-          <div class="notice-title">Para confirmar tu pedido</div>
-          <p class="notice-text">
-            Aboná el total de <strong>${formatMoney(order.totals.total)}</strong> por transferencia.
-          </p>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="panel">
-          <h2 class="panel-title" style="margin-top:0">Datos de transferencia</h2>
-          ${bankLines || `<p class="panel-subtitle">Escribinos por WhatsApp y te pasamos el alias para transferir.</p>`}
-          <div class="line">
-            <div>
-              <div class="line-title">Referencia</div>
-              <div class="line-sub">Usá esta referencia para identificar el pago.</div>
-            </div>
-            <div class="mono">Pedido #${escapeHtml(order.number)} - ${escapeHtml(order.checkout.name)}</div>
+    <div class="checkout-layout">
+      <div class="confirm-steps">
+        <section class="confirm-step">
+          <span class="step-num">1</span>
+          <div class="confirm-step-body">
+            <h2 class="confirm-step-title">Envianos el pedido por WhatsApp</h2>
+            <p class="confirm-step-text">Se abre el chat con el detalle del pedido ya escrito. Solo tenés que enviarlo.</p>
+            <a class="btn btn-wa btn-lg" href="${escapeHtml(buildWhatsappLink(message))}" target="_blank" rel="noopener">${icon("chat")}Enviar por WhatsApp</a>
+            <details class="msg-details">
+              <summary>Ver o copiar el mensaje</summary>
+              <label class="sr-only" for="paymentMsg">Mensaje del pedido</label>
+              <textarea id="paymentMsg" class="msg-box" rows="10" readonly>${escapeHtml(message)}</textarea>
+              <button class="btn btn-ghost btn-sm" type="button" id="copyMsg">${icon("copy")}<span>Copiar mensaje</span></button>
+            </details>
           </div>
-        </div>
+        </section>
 
-        <div class="divider"></div>
-
-        <div class="row">
-          <a class="btn btn-primary" href="${escapeHtml(wa)}" target="_blank" rel="noreferrer">
-            Enviar por WhatsApp
-          </a>
-          <button class="btn btn-outline" id="copyMsg">Copiar mensaje</button>
-          <button class="btn" id="goCatalog">Volver al catálogo</button>
-        </div>
-
-        <textarea id="paymentMsg" class="mono" style="margin-top:12px" readonly>${escapeHtml(
-          message,
-        )}</textarea>
-      </section>
-
-      <aside class="panel summary-panel">
-        <h2 class="panel-title">Resumen de compra</h2>
-        <p class="panel-subtitle">Guardamos tu pedido y esperamos el pago.</p>
-        <div class="divider"></div>
-        <div class="line">
-          <div class="line-title">Subtotal</div>
-          <div class="mono">${formatMoney(order.totals.itemsSubtotal)}</div>
-        </div>
-        <div class="line">
-          <div class="line-title">Envío</div>
-          <div class="mono">${formatMoney(order.totals.shippingCost)}</div>
-        </div>
-        <div class="line">
-          <div>
-            <div class="line-title">Total</div>
-            <div class="line-sub">Precios en ARS</div>
+        <section class="confirm-step">
+          <span class="step-num">2</span>
+          <div class="confirm-step-body">
+            <h2 class="confirm-step-title">Transferí ${formatMoney(totals.total)}</h2>
+            ${bankHtml}
+            <p class="confirm-step-text">Cuando transfieras, mandanos el comprobante por WhatsApp.</p>
           </div>
-          <div class="mono">${formatMoney(order.totals.total)}</div>
+        </section>
+      </div>
+
+      <aside class="summary" aria-label="Detalle del pedido">
+        <div class="summary-head">
+          <h2 class="summary-title">Pedido #${escapeHtml(order.number)}</h2>
+          <span class="status-pill">${escapeHtml(order.status || "Pendiente de pago")}</span>
         </div>
-        <div class="notice" style="margin-top:12px">
-          <div class="notice-title">Importante</div>
-          <p class="notice-text">
-            La personalización con archivo se valida antes de producir. Si hace falta, te pedimos una versión mejor.
-          </p>
-        </div>
+        <ul class="mini-list">${renderMiniItems(cart)}</ul>
+        <dl class="totals">
+          <div><dt>Subtotal</dt><dd>${formatMoney(totals.itemsSubtotal)}</dd></div>
+          <div><dt>Envío</dt><dd>${shippingText(order.checkout?.shippingMethod, totals.shippingCost)}</dd></div>
+          <div class="totals-total"><dt>Total</dt><dd>${formatMoney(totals.total)}</dd></div>
+        </dl>
+        ${
+          hasUpload
+            ? `<p class="summary-note note-warn"><span><strong>Importante:</strong> La personalización con archivo se valida antes de producir. Si hace falta, te pedimos una versión mejor.</span></p>`
+            : ""
+        }
+        <button class="btn btn-ghost btn-block" type="button" id="goCatalog">Volver a la tienda</button>
       </aside>
     </div>
+    <p class="sr-only" id="copyStatus" aria-live="polite"></p>
   `;
 }
 
 function attachOrderConfirmationHandlers() {
-  const goCatalog = document.getElementById("goCatalog");
-  const copyBtn = document.getElementById("copyMsg");
-  const msgEl = document.getElementById("paymentMsg");
+  const status = document.getElementById("copyStatus");
+  const announce = (text) => {
+    if (status) status.textContent = text;
+  };
 
-  if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
-
-  if (copyBtn && msgEl) {
-    copyBtn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(msgEl.value);
-        copyBtn.textContent = "Copiado";
-        setTimeout(() => {
-          copyBtn.textContent = "Copiar mensaje";
-        }, 1200);
-      } catch {
-        msgEl.focus();
-        msgEl.select();
-        alert("No se pudo copiar automáticamente. Copialo manualmente.");
-      }
+  const copyMsg = document.getElementById("copyMsg");
+  const msg = document.getElementById("paymentMsg");
+  if (copyMsg && msg instanceof HTMLTextAreaElement) {
+    copyMsg.addEventListener("click", async () => {
+      const ok = await copyText(msg.value);
+      const label = copyMsg.querySelector("span");
+      if (label) label.textContent = ok ? "Copiado" : "No se pudo copiar";
+      announce(ok ? "Mensaje copiado" : "No se pudo copiar el mensaje");
+      setTimeout(() => {
+        if (label) label.textContent = "Copiar mensaje";
+      }, 2000);
     });
   }
+
+  document.querySelectorAll("[data-copy]").forEach((btn) => {
+    const original = btn.getAttribute("aria-label") || "Copiar";
+    btn.addEventListener("click", async () => {
+      const ok = await copyText(btn.getAttribute("data-copy") || "");
+      if (!ok) {
+        announce("No se pudo copiar");
+        return;
+      }
+      btn.classList.add("is-copied");
+      btn.innerHTML = icon("check");
+      btn.setAttribute("aria-label", "Copiado");
+      announce(`${original.replace(/^Copiar /, "")} copiado`);
+      setTimeout(() => {
+        btn.classList.remove("is-copied");
+        btn.innerHTML = icon("copy");
+        btn.setAttribute("aria-label", original);
+      }, 1800);
+    });
+  });
 }
 
 function renderHowItWorks() {
+  const steps = [
+    ["Elegí tu producto", "Remera, buzo o gorra. Elegí talle y color."],
+    [
+      "Diseños de la casa (rápido)",
+      "En “Diseños de la casa” elegís un diseño ya listo, seleccionás el talle disponible y lo agregás al carrito.",
+    ],
+    ["Personalizalo", "Podés elegir texto o subir tu diseño."],
+    ["Generá el pedido", "En el checkout te mostramos el total y los datos para transferir."],
+    ["Pagá el total", "Con el pago confirmás y pasamos a producción."],
+  ];
+
   return `
-    <section class="panel">
-      <h1 class="panel-title">Cómo funciona</h1>
-      <p class="panel-subtitle">Simple: elegís, personalizás y confirmás con pago total.</p>
-      <div class="divider"></div>
-      <div class="stack">
-        <div class="notice">
-          <div class="notice-title">1) Elegí tu producto</div>
-          <p class="notice-text">Remera, buzo o gorra. Elegí talle y color.</p>
-        </div>
-        <div class="notice">
-          <div class="notice-title">2) Diseños de la casa (rápido)</div>
-          <p class="notice-text">
-            En el carrusel “Diseños de la casa” elegís un diseño ya listo, seleccionás el talle disponible y lo agregás al carrito.
-          </p>
-        </div>
-        <div class="notice">
-          <div class="notice-title">3) Personalizalo</div>
-          <p class="notice-text">Podés elegir texto o subir tu diseño. La vista previa es referencial.</p>
-        </div>
-        <div class="notice">
-          <div class="notice-title">4) Generá el pedido</div>
-          <p class="notice-text">En el checkout te mostramos el total y los datos para transferir.</p>
-        </div>
-        <div class="notice">
-          <div class="notice-title">5) Pagá el total</div>
-          <p class="notice-text">Con el pago confirmás y pasamos a producción.</p>
-        </div>
-      </div>
-    </section>
+    <div class="page-head">
+      <h1 class="page-title">Cómo funciona</h1>
+      <p class="page-sub">Simple: elegís, personalizás y confirmás con pago total.</p>
+    </div>
+    <ol class="timeline">
+      ${steps
+        .map(
+          ([title, text], i) => `
+            <li class="timeline-item">
+              <span class="step-num">${i + 1}</span>
+              <div>
+                <h2 class="timeline-title">${title}</h2>
+                <p class="timeline-text">${text}</p>
+              </div>
+            </li>`,
+        )
+        .join("")}
+    </ol>
+    <div class="cta-row">
+      <a class="btn btn-primary btn-lg" href="#/" data-scroll="disenos">Ver diseños ${icon("arrowRight")}</a>
+      <a class="btn btn-ghost btn-lg" href="#/producto/remera-basica">Personalizar la mía</a>
+    </div>
   `;
 }
 
 function renderPolicies() {
+  const help = buildWhatsappLink(`Hola ${CONFIG.storeName}, tengo una consulta.`);
   return `
-    <section class="panel">
-      <h1 class="panel-title">Políticas</h1>
-      <p class="panel-subtitle">Cómo trabajamos los pedidos personalizados.</p>
-      <div class="divider"></div>
-      <div class="stack">
-        <div class="notice">
-          <div class="notice-title">Personalización</div>
-          <p class="notice-text">Los productos personalizados se validan antes de producir.</p>
-        </div>
-        <div class="notice">
-          <div class="notice-title">Pago</div>
-          <p class="notice-text">
-            El pago confirma el pedido. Si hace falta, coordinamos el envío/entrega por WhatsApp.
-          </p>
-        </div>
+    <article class="prose-page">
+      <div class="page-head">
+        <h1 class="page-title">Políticas</h1>
+        <p class="page-sub">Cómo trabajamos los pedidos personalizados.</p>
       </div>
-    </section>
+      <section class="prose-block">
+        <h2>Personalización</h2>
+        <p>Los productos personalizados se validan antes de producir.</p>
+      </section>
+      <section class="prose-block">
+        <h2>Pago</h2>
+        <p>El pago confirma el pedido. Si hace falta, coordinamos el envío o la entrega por WhatsApp.</p>
+      </section>
+      <p class="prose-contact">¿Te quedó alguna duda? <a href="${escapeHtml(help)}" target="_blank" rel="noopener">Escribinos por WhatsApp</a>.</p>
+    </article>
   `;
 }
 
 function renderNotFound() {
   return `
-    <section class="panel">
-      <h1 class="panel-title">No encontrado</h1>
-      <p class="panel-subtitle">Esa página no existe.</p>
-      <div class="row">
-        <button class="btn btn-primary" id="goCatalog">Ir al catálogo</button>
+    <section class="empty">
+      <span class="empty-icon">${icon("bag", "icon icon-xl")}</span>
+      <h1 class="empty-title">Esta página no existe</h1>
+      <p class="empty-text">Puede que el link esté incompleto o que el producto ya no esté publicado.</p>
+      <div class="empty-actions">
+        <button class="btn btn-primary" type="button" id="goCatalog">Ir a la tienda</button>
       </div>
     </section>
   `;
 }
 
-function attachGlobalNotFoundHandler() {
+// Clicks globales: volver a la tienda y saltar a una sección del inicio
+function attachGlobalHandlers() {
   document.addEventListener("click", (e) => {
-    const t = e.target;
-    if (!(t instanceof HTMLElement)) return;
-    if (t.id === "goCatalog") navigate("#/");
+    const t = e.target instanceof Element ? e.target : null;
+    if (!t) return;
+
+    if (t.closest(".skip-link")) {
+      e.preventDefault();
+      document.getElementById("app")?.focus();
+      return;
+    }
+
+    if (t.closest("#goCatalog")) {
+      navigate("#/");
+      return;
+    }
+
+    const link = t.closest("[data-scroll]");
+    if (!link) return;
+    e.preventDefault();
+    const id = link.getAttribute("data-scroll") || "";
+    const onHome = parseRoute().parts.length === 0 && !document.body.classList.contains("is-admin");
+    const target = onHome ? document.getElementById(id) : null;
+    if (target) {
+      target.scrollIntoView({ block: "start", behavior: scrollBehavior() });
+      return;
+    }
+    pendingScroll = id;
+    if (onHome) render();
+    else navigate("#/");
   });
 }
 
@@ -2330,7 +2430,7 @@ const adminApi = {
 window.addEventListener("hashchange", render);
 window.addEventListener("DOMContentLoaded", () => {
   loadState();
-  attachGlobalNotFoundHandler();
+  attachGlobalHandlers();
   loadPublishedStore().finally(() => {
     render();
   });
