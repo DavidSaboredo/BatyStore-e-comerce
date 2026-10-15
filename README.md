@@ -348,5 +348,5 @@ Guías:
 
 ## 🧾 Créditos
 
-Laruzo (David Saboredo)
+laruzo-dev
 
