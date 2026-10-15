@@ -14,7 +14,6 @@
 */
 
 import {
-  ADMIN_SESSION_KEY,
   CONFIG,
   DEFAULT_DESIGNS,
   MATERIALS,
@@ -22,6 +21,7 @@ import {
   PRODUCTS,
   STORAGE_KEYS,
 } from "./app-data.js";
+import { mountAdmin } from "./admin.js";
 
 const moneyFormatter = new Intl.NumberFormat(CONFIG.locale, {
   style: "currency",
@@ -44,7 +44,7 @@ const state = {
   cart: [],
   orders: [],
   settings: {},
-  published: { designs: null, pricing: null },
+  published: { designs: null, pricing: null, business: null, updatedAt: null },
 };
 
 function readCartFromStorage() {
@@ -120,7 +120,13 @@ function getSettings() {
 function setPublishedStore(next) {
   const designs = Array.isArray(next?.designs) ? next.designs : null;
   const pricing = next?.pricing && typeof next.pricing === "object" ? next.pricing : null;
-  state.published = { designs, pricing };
+  const business = next?.business && typeof next.business === "object" ? next.business : null;
+  const updatedAt = typeof next?.updatedAt === "number" ? next.updatedAt : null;
+  state.published = { designs, pricing, business, updatedAt };
+}
+
+function getPublishedStore() {
+  return state.published;
 }
 
 function getPublishedDesigns() {
@@ -264,6 +270,31 @@ function shippingConfig() {
   };
 }
 
+// Los valores de ejemplo de app-data.js no se le muestran al cliente
+const PLACEHOLDER_BANK = { alias: "BATYSTORE.ALIAS", cvuCbu: "0000000000000000000000", cuit: "00-00000000-0" };
+
+function cleanBankValue(key, value) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text && text !== PLACEHOLDER_BANK[key] ? text : "";
+}
+
+// Datos de cobro y contacto: los que cargó el dueño en el panel, o los de app-data.js
+function businessInfo() {
+  const published = state.published?.business;
+  const source = published?.bank && typeof published.bank === "object" ? published.bank : CONFIG.bank || {};
+  const bank = {
+    alias: cleanBankValue("alias", source.alias),
+    cvuCbu: cleanBankValue("cvuCbu", source.cvuCbu),
+    holder: cleanBankValue("holder", source.holder),
+    cuit: cleanBankValue("cuit", source.cuit),
+  };
+  return {
+    whatsappNumber: (typeof published?.whatsappNumber === "string" && published.whatsappNumber) || CONFIG.whatsappNumber,
+    bank,
+    hasBank: Boolean(bank.alias || bank.cvuCbu),
+  };
+}
+
 function isHatProduct(product) {
   return String(product?.type || "") === "Gorra";
 }
@@ -379,6 +410,16 @@ function render() {
   const root = document.getElementById("app");
   if (!root) return;
 
+  // El panel reemplaza a la vieja pantalla de configuración
+  const isAdmin = parts[0] === "admin" || parts[0] === "config";
+  document.body.classList.toggle("is-admin", isAdmin);
+  document.title = isAdmin ? `Panel · ${CONFIG.storeName}` : CONFIG.storeName;
+  if (isAdmin) {
+    if (parts[0] === "config") history.replaceState(null, "", "#/admin");
+    mountAdmin(root, adminApi);
+    return;
+  }
+
   if (parts.length === 0) {
     root.innerHTML = renderCatalog(query);
     attachCatalogHandlers(query);
@@ -433,126 +474,8 @@ function render() {
     return;
   }
 
-  if (parts[0] === "config") {
-    root.innerHTML = renderConfig();
-    attachConfigHandlers();
-    return;
-  }
-
-  if (parts[0] === "admin") {
-    root.innerHTML = renderAdmin();
-    attachAdminHandlers();
-    return;
-  }
-
   root.innerHTML = renderNotFound();
   setupThumbVideos(root);
-}
-
-function renderConfig() {
-  const cfg = getCloudinaryConfig();
-  const cloudName = typeof cfg.cloudName === "string" ? cfg.cloudName : "";
-  const uploadPreset = typeof cfg.uploadPreset === "string" ? cfg.uploadPreset : "";
-  const folder = typeof cfg.folder === "string" ? cfg.folder : "";
-  const adminKey = typeof getSettings()?.adminKey === "string" ? String(getSettings().adminKey) : "";
-
-  return `
-    <section class="panel">
-      <h1 class="panel-title">Configuración</h1>
-      <p class="panel-subtitle">Guardado en este navegador.</p>
-      <div class="divider"></div>
-
-      <div class="notice">
-        <div class="notice-title">Cloudinary (subida de diseños)</div>
-        <p class="notice-text">
-          Usá un Upload Preset unsigned. El link del diseño se incluye en el pedido por WhatsApp.
-        </p>
-      </div>
-
-      <div class="divider"></div>
-
-      <form id="configForm" class="form" autocomplete="off">
-        <div class="field">
-          <label for="cloudName">Cloud name</label>
-          <input id="cloudName" name="cloudName" placeholder="Ej: mi-cloud" value="${escapeHtml(
-            cloudName,
-          )}" />
-        </div>
-        <div class="field">
-          <label for="uploadPreset">Upload preset (unsigned)</label>
-          <input id="uploadPreset" name="uploadPreset" placeholder="Ej: batystore_unsigned" value="${escapeHtml(
-            uploadPreset,
-          )}" />
-        </div>
-        <div class="field full">
-          <label for="folder">Folder (opcional)</label>
-          <input id="folder" name="folder" placeholder="Ej: batystore" value="${escapeHtml(folder)}" />
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="notice">
-          <div class="notice-title">Acceso Admin</div>
-          <p class="notice-text">Usá la misma clave que cargaste en Vercel como ADMIN_KEY.</p>
-        </div>
-
-        <div class="field full">
-          <label for="adminKey">Admin key</label>
-          <input id="adminKey" name="adminKey" placeholder="Clave de admin" value="${escapeHtml(adminKey)}" />
-        </div>
-
-        <div class="field full">
-          <div class="row">
-            <button class="btn" type="button" id="goCatalog">Volver</button>
-            <button class="btn btn-outline" type="button" id="clearCfg">Borrar</button>
-            <button class="btn btn-primary" type="submit">Guardar</button>
-          </div>
-        </div>
-      </form>
-    </section>
-  `;
-}
-
-function attachConfigHandlers() {
-  const form = document.getElementById("configForm");
-  const goCatalog = document.getElementById("goCatalog");
-  const clearBtn = document.getElementById("clearCfg");
-  if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
-
-  if (clearBtn) {
-    clearBtn.addEventListener("click", () => {
-      const next = { ...getSettings() };
-      delete next.cloudinary;
-      delete next.adminKey;
-      setSettings(next);
-      setAdminSessionKey("");
-      render();
-    });
-  }
-
-  if (!form) return;
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const fd = new FormData(form);
-    const cloudName = String(fd.get("cloudName") || "").trim();
-    const uploadPreset = String(fd.get("uploadPreset") || "").trim();
-    const folder = String(fd.get("folder") || "").trim();
-    const adminKey = String(fd.get("adminKey") || "").trim();
-
-    const next = { ...getSettings() };
-    const current = next.cloudinary && typeof next.cloudinary === "object" ? { ...next.cloudinary } : {};
-    if (cloudName) current.cloudName = cloudName;
-    else delete current.cloudName;
-    if (uploadPreset) current.uploadPreset = uploadPreset;
-    else delete current.uploadPreset;
-    if (typeof folder === "string") current.folder = folder;
-    next.cloudinary = current;
-    if (adminKey) next.adminKey = adminKey;
-    else delete next.adminKey;
-    setSettings(next);
-    setAdminSessionKey("");
-    navigate("#/");
-  });
 }
 
 function getCloudinaryConfig() {
@@ -569,857 +492,6 @@ function getCloudinaryConfig() {
   }
 
   return cfg;
-}
-
-function getConfiguredAdminKey() {
-  const saved = getSettings()?.adminKey;
-  return typeof saved === "string" ? saved.trim() : "";
-}
-
-function getAdminSessionKey() {
-  try {
-    const raw = sessionStorage.getItem(ADMIN_SESSION_KEY);
-    return typeof raw === "string" ? raw.trim() : "";
-  } catch {
-    return "";
-  }
-}
-
-function setAdminSessionKey(next) {
-  try {
-    const value = typeof next === "string" ? next.trim() : "";
-    if (value) {
-      sessionStorage.setItem(ADMIN_SESSION_KEY, value);
-      return;
-    }
-    sessionStorage.removeItem(ADMIN_SESSION_KEY);
-  } catch {}
-}
-
-function isAdminSessionValid() {
-  const configured = getConfiguredAdminKey();
-  const session = getAdminSessionKey();
-  return Boolean(configured && session && configured === session);
-}
-
-function renderAdmin() {
-  const configuredAdminKey = getConfiguredAdminKey();
-  if (!configuredAdminKey) {
-    return `
-      <section class="panel">
-        <h1 class="panel-title">Acceso</h1>
-        <p class="panel-subtitle">Primero configurá la clave admin en Configuración.</p>
-        <div class="divider"></div>
-        <div class="row">
-          <button class="btn" type="button" id="goCatalog">Volver</button>
-          <button class="btn btn-primary" type="button" id="goConfig">Ir a Configuración</button>
-        </div>
-      </section>
-    `;
-  }
-
-  if (!isAdminSessionValid()) {
-    return `
-      <section class="panel">
-        <h1 class="panel-title">Acceso</h1>
-        <p class="panel-subtitle">Ingresá la clave para administrar.</p>
-        <div class="divider"></div>
-        <form id="adminLoginForm" class="form" autocomplete="off">
-          <div class="field full">
-            <label for="adminKey">Clave</label>
-            <input id="adminKey" name="adminKey" placeholder="Clave de admin" />
-          </div>
-          <div class="field full">
-            <div class="row">
-              <button class="btn" type="button" id="goCatalog">Volver</button>
-              <button class="btn btn-primary" type="submit">Entrar</button>
-            </div>
-          </div>
-        </form>
-      </section>
-    `;
-  }
-
-  const designs = getDesigns();
-  const designsJson = escapeHtml(JSON.stringify(designs, null, 2));
-  const pricing = getPricing();
-  const chico = Number(pricing.stampSizes?.chico) || 0;
-  const mediano = Number(pricing.stampSizes?.mediano) || 0;
-  const grande = Number(pricing.stampSizes?.grande) || 0;
-  const hatStamp = Number(pricing.hatStamp) || 0;
-  const remeraPeinado = Number(pricing.productBase?.remeraPeinado) || 0;
-  const remeraAlgodon100 = Number(pricing.productBase?.remeraAlgodon100) || 0;
-  const buzoBase = Number(pricing.productBase?.buzo) || 0;
-  const gorraBase = Number(pricing.productBase?.gorra) || 0;
-  const pickupLabel = typeof pricing.shipping?.pickupLabel === "string" ? pricing.shipping.pickupLabel : "";
-  const deliveryLabel = typeof pricing.shipping?.deliveryLabel === "string" ? pricing.shipping.deliveryLabel : "";
-  const deliveryFlatRate = Number(pricing.shipping?.deliveryFlatRate) || 0;
-
-  const designsListHtml =
-    designs.length > 0
-      ? designs
-          .map((d) => {
-            const img = typeof d?.imageUrl === "string" ? d.imageUrl.trim() : "";
-            const media = img
-              ? `<img class="admin-design-img" src="${escapeHtml(img)}" alt="${escapeHtml(d.name)}" loading="lazy" />`
-              : `<div class="admin-design-img placeholder"></div>`;
-            const productId = typeof d?.productId === "string" ? d.productId : "";
-            const productName = findProduct(productId)?.name || productId || "—";
-            const sizes = Array.isArray(d?.allowedSizes) ? d.allowedSizes.join(", ") : "";
-            const fixedSize = typeof d?.fixedSize === "string" ? d.fixedSize.trim() : "";
-            const fixedColor = typeof d?.fixedColor === "string" ? d.fixedColor.trim() : "";
-            const materialId = typeof d?.materialId === "string" ? d.materialId.trim() : "";
-            const materialLabel = materialId ? MATERIALS.find((m) => m.id === materialId)?.label || materialId : "";
-            const price = designPriceFor(d);
-            return `
-              <div class="admin-design-card" data-design-id="${escapeHtml(d.id)}">
-                ${media}
-                <div class="admin-design-meta">
-                  <div class="admin-design-name">${escapeHtml(d.name)}</div>
-                  <div class="admin-design-sub">${escapeHtml(productName)}${
-                    fixedSize ? ` • ${escapeHtml(fixedSize)}` : sizes ? ` • ${escapeHtml(sizes)}` : ""
-                  }${fixedColor ? ` • ${escapeHtml(fixedColor)}` : ""}${materialLabel ? ` • ${escapeHtml(materialLabel)}` : ""}</div>
-                  <div class="admin-design-price">${price ? `+${formatMoney(price)}` : ""}</div>
-                </div>
-                <div class="admin-design-actions">
-                  <button class="btn btn-outline" type="button" data-edit-design="${escapeHtml(d.id)}">Editar</button>
-                  <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(d.id)}">Quitar</button>
-                </div>
-              </div>
-            `;
-          })
-          .join("")
-      : `<div class="notice"><div class="notice-title">Sin diseños</div><p class="notice-text">Agregá el primero con el formulario.</p></div>`;
-
-  return `
-    <section class="panel">
-      <h1 class="panel-title">Admin</h1>
-      <p class="panel-subtitle">Cargá diseños y publicalos para que los vean todos.</p>
-      <div class="divider"></div>
-
-      <form id="adminForm" class="form" autocomplete="off">
-        <div class="field full">
-          <div class="admin-toolbar">
-            <div class="notice" id="publishStatus">
-              <div class="notice-title">Estado</div>
-              <p class="notice-text">Listo para publicar.</p>
-            </div>
-            <div class="admin-toolbar-actions">
-              <button class="btn btn-outline" type="button" id="testApiBtn">Probar conexión</button>
-              <button class="btn btn-primary" type="submit">Publicar</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="field full">
-          <h2 class="panel-title" style="margin:0">Diseños</h2>
-          <p class="panel-subtitle" style="margin:8px 0 0">Estos son los que ve el cliente.</p>
-        </div>
-
-        <div class="field full" id="adminDesignList">
-          ${designsListHtml}
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="field full" id="designEditBar" style="display:none">
-          <input type="hidden" id="editingDesignId" value="" />
-          <div class="admin-editbar">
-            <div class="pill" id="editingDesignLabel">Editando</div>
-            <button class="btn btn-outline" type="button" id="cancelEditDesign">Cancelar edición</button>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="newDesignName">Nombre</label>
-          <input id="newDesignName" placeholder="Ej: Gekk1" />
-        </div>
-        <div class="field">
-          <label for="newDesignPrice">Precio</label>
-          <input id="newDesignPrice" inputmode="numeric" placeholder="Ej: 25000" />
-        </div>
-        <div class="field">
-          <label for="newDesignProduct">Producto</label>
-          <select id="newDesignProduct">
-            ${PRODUCTS.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("")}
-          </select>
-        </div>
-        <div class="field" id="newDesignMaterialField" style="display:none">
-          <label for="newDesignMaterial">Material (solo remera)</label>
-          <select id="newDesignMaterial">
-            ${MATERIALS.map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}</option>`).join("")}
-          </select>
-        </div>
-        <div class="field">
-          <label for="newDesignColor">Color (fijo)</label>
-          <select id="newDesignColor">
-            ${(PRODUCTS[0]?.colors || [])
-              .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
-              .join("")}
-          </select>
-        </div>
-        <div class="field">
-          <label for="newDesignSizes">Talles</label>
-          <input id="newDesignSizes" placeholder="Ej: 1,2,3,4" />
-        </div>
-        <div class="field" id="newDesignFixedSizeField" style="display:none">
-          <label for="newDesignFixedSize">Talle fijo (opcional)</label>
-          <select id="newDesignFixedSize">
-            <option value="">A elección del cliente</option>
-          </select>
-        </div>
-
-        <div class="field full">
-          <label for="newDesignFile">Imagen</label>
-          <div class="admin-file-row">
-            <input id="newDesignFile" type="file" accept="image/*" />
-            <input id="newDesignImageUrl" placeholder="URL (se completa al subir)" />
-            <button class="btn btn-outline" type="button" id="addDesignToJson">Agregar</button>
-          </div>
-          <div class="hint">Se sube a Cloudinary y queda visible en el carrusel.</div>
-        </div>
-
-        <div class="field full">
-          <label for="designsJson">Diseños de la casa (JSON)</label>
-          <textarea id="designsJson" name="designsJson" rows="10" class="mono">${designsJson}</textarea>
-          <div class="hint">
-            Formato: [{"id":"baty-01","name":"Baty 01","price":2500,"productId":"remera-basica","allowedSizes":[1,2,3],"imageUrl":"https://..."}]
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="field full">
-          <h2 class="panel-title" style="margin:0">Precios</h2>
-          <p class="panel-subtitle" style="margin:8px 0 0">Estos precios se usan en toda la web.</p>
-        </div>
-
-        <div class="field">
-          <label for="priceRemeraPeinado">Remera (Algodón Peinado)</label>
-          <input id="priceRemeraPeinado" name="priceRemeraPeinado" inputmode="numeric" value="${escapeHtml(
-            remeraPeinado,
-          )}" />
-        </div>
-        <div class="field">
-          <label for="priceRemeraAlgodon100">Remera (Algodón 100%)</label>
-          <input id="priceRemeraAlgodon100" name="priceRemeraAlgodon100" inputmode="numeric" value="${escapeHtml(
-            remeraAlgodon100,
-          )}" />
-        </div>
-        <div class="field">
-          <label for="priceBuzo">Buzo</label>
-          <input id="priceBuzo" name="priceBuzo" inputmode="numeric" value="${escapeHtml(buzoBase)}" />
-        </div>
-        <div class="field">
-          <label for="priceGorra">Gorra</label>
-          <input id="priceGorra" name="priceGorra" inputmode="numeric" value="${escapeHtml(gorraBase)}" />
-        </div>
-
-        <div class="field full">
-          <h2 class="panel-title" style="margin:0">Delivery</h2>
-        </div>
-        <div class="field">
-          <label for="pickupLabel">Etiqueta retiro</label>
-          <input id="pickupLabel" name="pickupLabel" value="${escapeHtml(pickupLabel)}" />
-        </div>
-        <div class="field">
-          <label for="deliveryLabel">Etiqueta envío</label>
-          <input id="deliveryLabel" name="deliveryLabel" value="${escapeHtml(deliveryLabel)}" />
-        </div>
-        <div class="field">
-          <label for="deliveryFlatRate">Costo envío</label>
-          <input id="deliveryFlatRate" name="deliveryFlatRate" inputmode="numeric" value="${escapeHtml(
-            deliveryFlatRate,
-          )}" />
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="field full">
-          <h2 class="panel-title" style="margin:0">Estampas</h2>
-        </div>
-
-        <div class="field">
-          <label for="priceChico">Estampa chico</label>
-          <input id="priceChico" name="priceChico" inputmode="numeric" value="${escapeHtml(chico)}" />
-        </div>
-        <div class="field">
-          <label for="priceMediano">Estampa mediano</label>
-          <input id="priceMediano" name="priceMediano" inputmode="numeric" value="${escapeHtml(mediano)}" />
-        </div>
-        <div class="field">
-          <label for="priceGrande">Estampa grande</label>
-          <input id="priceGrande" name="priceGrande" inputmode="numeric" value="${escapeHtml(grande)}" />
-        </div>
-        <div class="field">
-          <label for="priceHat">Gorra (estampa)</label>
-          <input id="priceHat" name="priceHat" inputmode="numeric" value="${escapeHtml(hatStamp)}" />
-        </div>
-
-        <div class="field full">
-          <div class="row">
-            <button class="btn" type="button" id="adminBack">Volver</button>
-            <button class="btn btn-outline" type="button" id="adminLogout">Cerrar sesión</button>
-            <button class="btn btn-outline" type="button" id="adminReset">Restaurar</button>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-        <div class="notice">
-          <div class="notice-title">Publicación</div>
-          <p class="notice-text">
-            Para que lo vean todos los clientes en Vercel, la app publica en /api/store.
-          </p>
-        </div>
-      </form>
-    </section>
-  `;
-}
-
-function attachAdminHandlers() {
-  const goCatalog = document.getElementById("goCatalog");
-  if (goCatalog) goCatalog.addEventListener("click", () => navigate("#/"));
-
-  const goConfig = document.getElementById("goConfig");
-  if (goConfig) goConfig.addEventListener("click", () => navigate("#/config"));
-
-  if (!isAdminSessionValid()) {
-    const loginForm = document.getElementById("adminLoginForm");
-    if (loginForm) {
-      loginForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const fd = new FormData(loginForm);
-        const entered = String(fd.get("adminKey") || "").trim();
-        const configured = getConfiguredAdminKey();
-        if (!configured) {
-          alert("Configurá primero la Admin key en Configuración.");
-          navigate("#/config");
-          return;
-        }
-        if (!entered) return;
-        if (entered !== configured) {
-          alert("Clave inválida.");
-          return;
-        }
-        setAdminSessionKey(entered);
-        render();
-      });
-    }
-    return;
-  }
-
-  const adminSessionKey = getAdminSessionKey();
-  if (!adminSessionKey) {
-    setAdminSessionKey("");
-    render();
-    return;
-  }
-
-  const designsJsonEl = document.getElementById("designsJson");
-  const newDesignFile = document.getElementById("newDesignFile");
-  const newDesignImageUrl = document.getElementById("newDesignImageUrl");
-  const addDesignToJson = document.getElementById("addDesignToJson");
-  const adminDesignList = document.getElementById("adminDesignList");
-  const designEditBar = document.getElementById("designEditBar");
-  const editingDesignId = document.getElementById("editingDesignId");
-  const editingDesignLabel = document.getElementById("editingDesignLabel");
-  const cancelEditDesign = document.getElementById("cancelEditDesign");
-  const publishStatus = document.getElementById("publishStatus");
-  const testApiBtn = document.getElementById("testApiBtn");
-  const adminLogout = document.getElementById("adminLogout");
-  const newDesignProduct = document.getElementById("newDesignProduct");
-  const newDesignColor = document.getElementById("newDesignColor");
-  const newDesignMaterialField = document.getElementById("newDesignMaterialField");
-  const newDesignMaterial = document.getElementById("newDesignMaterial");
-  const newDesignFixedSizeField = document.getElementById("newDesignFixedSizeField");
-  const newDesignFixedSize = document.getElementById("newDesignFixedSize");
-
-  if (adminLogout) {
-    adminLogout.addEventListener("click", () => {
-      setAdminSessionKey("");
-      render();
-    });
-  }
-
-  function parseDesignsFromTextarea() {
-    if (!(designsJsonEl instanceof HTMLTextAreaElement)) return [];
-    try {
-      const raw = designsJsonEl.value.trim();
-      const list = raw ? JSON.parse(raw) : [];
-      return Array.isArray(list) ? list : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function writeDesignsToTextarea(list) {
-    if (!(designsJsonEl instanceof HTMLTextAreaElement)) return;
-    designsJsonEl.value = JSON.stringify(list, null, 2);
-  }
-
-  function renderAdminDesignList() {
-    if (!adminDesignList) return;
-    const list = parseDesignsFromTextarea();
-    if (!Array.isArray(list) || list.length === 0) {
-      adminDesignList.innerHTML =
-        `<div class="notice"><div class="notice-title">Sin diseños</div><p class="notice-text">Agregá el primero con el formulario.</p></div>`;
-      return;
-    }
-
-    const html = list
-      .map((d) => {
-        const id = String(d?.id || "").trim();
-        const name = String(d?.name || "").trim();
-        const img = typeof d?.imageUrl === "string" ? d.imageUrl.trim() : "";
-        const media = img
-          ? `<img class="admin-design-img" src="${escapeHtml(img)}" alt="${escapeHtml(name)}" loading="lazy" />`
-          : `<div class="admin-design-img placeholder"></div>`;
-        const productId = typeof d?.productId === "string" ? d.productId.trim() : "";
-        const productName = findProduct(productId)?.name || productId || "—";
-        const sizes = Array.isArray(d?.allowedSizes) ? d.allowedSizes.join(", ") : "";
-        const fixedSize = typeof d?.fixedSize === "string" ? d.fixedSize.trim() : "";
-        const fixedColor = typeof d?.fixedColor === "string" ? d.fixedColor.trim() : "";
-        const materialId = typeof d?.materialId === "string" ? d.materialId.trim() : "";
-        const materialLabel = materialId ? MATERIALS.find((m) => m.id === materialId)?.label || materialId : "";
-        const price = designPriceFor(d);
-        return `
-          <div class="admin-design-card" data-design-id="${escapeHtml(id)}">
-            ${media}
-            <div class="admin-design-meta">
-              <div class="admin-design-name">${escapeHtml(name || id)}</div>
-              <div class="admin-design-sub">${escapeHtml(productName)}${
-                fixedSize ? ` • ${escapeHtml(fixedSize)}` : sizes ? ` • ${escapeHtml(sizes)}` : ""
-              }${fixedColor ? ` • ${escapeHtml(fixedColor)}` : ""}${materialLabel ? ` • ${escapeHtml(materialLabel)}` : ""}</div>
-              <div class="admin-design-price">${price ? `+${formatMoney(price)}` : ""}</div>
-            </div>
-            <div class="admin-design-actions">
-              <button class="btn btn-outline" type="button" data-edit-design="${escapeHtml(id)}">Editar</button>
-              <button class="btn btn-danger" type="button" data-remove-design="${escapeHtml(id)}">Quitar</button>
-            </div>
-          </div>
-        `;
-      })
-      .join("");
-    adminDesignList.innerHTML = html;
-  }
-
-  function clearDesignForm() {
-    const nameEl = document.getElementById("newDesignName");
-    const priceEl = document.getElementById("newDesignPrice");
-    const sizesEl = document.getElementById("newDesignSizes");
-    const imgEl = document.getElementById("newDesignImageUrl");
-    if (nameEl && "value" in nameEl) nameEl.value = "";
-    if (priceEl && "value" in priceEl) priceEl.value = "";
-    if (sizesEl && "value" in sizesEl) sizesEl.value = "";
-    if (imgEl && "value" in imgEl) imgEl.value = "";
-    if (newDesignFixedSize instanceof HTMLSelectElement) newDesignFixedSize.value = "";
-    if (newDesignMaterial instanceof HTMLSelectElement) newDesignMaterial.value = MATERIALS[0]?.id || "peinado";
-    if (newDesignProduct instanceof HTMLSelectElement) newDesignProduct.value = PRODUCTS[0]?.id || "remera-basica";
-    refreshNewDesignVariantFields();
-    if (addDesignToJson instanceof HTMLElement) addDesignToJson.textContent = "Agregar";
-  }
-
-  function setEditing(id) {
-    if (!(editingDesignId instanceof HTMLInputElement)) return;
-    const list = parseDesignsFromTextarea();
-    const design = list.find((d) => String(d?.id || "") === id);
-    if (!design) return;
-
-    editingDesignId.value = id;
-    if (designEditBar instanceof HTMLElement) designEditBar.style.display = "";
-    if (editingDesignLabel instanceof HTMLElement) {
-      editingDesignLabel.textContent = `Editando: ${id}`;
-    }
-    if (addDesignToJson instanceof HTMLElement) addDesignToJson.textContent = "Actualizar";
-
-    const nameEl = document.getElementById("newDesignName");
-    const priceEl = document.getElementById("newDesignPrice");
-    const sizesEl = document.getElementById("newDesignSizes");
-    const imgEl = document.getElementById("newDesignImageUrl");
-
-    const name = String(design?.name || "").trim();
-    const price = Number(design?.price) || 0;
-    const productId = String(design?.productId || "remera-basica").trim();
-    const fixedColor = String(design?.fixedColor || "").trim();
-    const fixedSize = String(design?.fixedSize || "").trim();
-    const materialId = String(design?.materialId || "").trim();
-    const imageUrl = String(design?.imageUrl || "").trim();
-    const allowedSizes = Array.isArray(design?.allowedSizes) ? design.allowedSizes.map((s) => String(s)) : [];
-
-    if (newDesignProduct instanceof HTMLSelectElement) {
-      newDesignProduct.value = productId || PRODUCTS[0]?.id || "remera-basica";
-    }
-    refreshNewDesignVariantFields();
-
-    if (nameEl && "value" in nameEl) nameEl.value = name;
-    if (priceEl && "value" in priceEl) priceEl.value = String(price || "");
-    if (sizesEl && "value" in sizesEl) sizesEl.value = allowedSizes.length ? allowedSizes.join(",") : "";
-    if (imgEl && "value" in imgEl) imgEl.value = imageUrl;
-
-    if (newDesignColor instanceof HTMLSelectElement) {
-      if (fixedColor) newDesignColor.value = fixedColor;
-    }
-    if (newDesignFixedSize instanceof HTMLSelectElement) {
-      if (fixedSize) newDesignFixedSize.value = fixedSize;
-      else newDesignFixedSize.value = "";
-    }
-    if (newDesignMaterial instanceof HTMLSelectElement) {
-      if (materialId) newDesignMaterial.value = materialId;
-      else newDesignMaterial.value = MATERIALS[0]?.id || "peinado";
-    }
-
-    const focusTarget = document.getElementById("newDesignName");
-    if (focusTarget instanceof HTMLElement) {
-      focusTarget.scrollIntoView({ behavior: "smooth", block: "center" });
-      if ("focus" in focusTarget) focusTarget.focus();
-    }
-  }
-
-  function clearEditing() {
-    if (editingDesignId instanceof HTMLInputElement) editingDesignId.value = "";
-    if (designEditBar instanceof HTMLElement) designEditBar.style.display = "none";
-    if (editingDesignLabel instanceof HTMLElement) editingDesignLabel.textContent = "Editando";
-    clearDesignForm();
-  }
-
-  if (cancelEditDesign) cancelEditDesign.addEventListener("click", clearEditing);
-
-  function refreshNewDesignVariantFields() {
-    const productId = String(newDesignProduct?.value || "").trim() || PRODUCTS[0]?.id || "";
-    const product = findProduct(productId);
-    const colors = (product?.colors || []).map(String);
-    const sizes = (product?.sizes || []).map(String);
-    const type = String(product?.type || "");
-
-    if (newDesignColor instanceof HTMLSelectElement) {
-      const current = newDesignColor.value;
-      newDesignColor.innerHTML = colors.length
-        ? colors.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")
-        : `<option value="">—</option>`;
-      if (colors.includes(current)) newDesignColor.value = current;
-      else if (colors.length) newDesignColor.value = colors[0];
-      else newDesignColor.value = "";
-    }
-
-    if (newDesignFixedSize instanceof HTMLSelectElement) {
-      const current = newDesignFixedSize.value;
-      newDesignFixedSize.innerHTML =
-        `<option value="">A elección del cliente</option>` +
-        sizes.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
-      if (sizes.includes(current)) newDesignFixedSize.value = current;
-      else newDesignFixedSize.value = "";
-    }
-
-    if (newDesignFixedSizeField) {
-      newDesignFixedSizeField.style.display = type === "Buzo" ? "" : "none";
-    }
-    if (newDesignMaterialField) {
-      newDesignMaterialField.style.display = type === "Remera" ? "" : "none";
-    }
-  }
-
-  if (newDesignProduct instanceof HTMLSelectElement) {
-    newDesignProduct.addEventListener("change", refreshNewDesignVariantFields);
-  }
-  refreshNewDesignVariantFields();
-
-  renderAdminDesignList();
-
-  if (newDesignFile instanceof HTMLInputElement) {
-    newDesignFile.addEventListener("change", async () => {
-      const file = newDesignFile.files && newDesignFile.files[0] ? newDesignFile.files[0] : null;
-      if (!file) return;
-      try {
-        if (publishStatus) {
-          publishStatus.querySelector(".notice-title").textContent = "Imagen";
-          publishStatus.querySelector(".notice-text").textContent = "Subiendo a Cloudinary...";
-        }
-        const uploaded = await uploadDesignToCloudinary(file);
-        if (newDesignImageUrl instanceof HTMLInputElement) {
-          newDesignImageUrl.value = uploaded.url;
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "No se pudo subir la imagen.";
-        alert(msg);
-        if (publishStatus) {
-          publishStatus.querySelector(".notice-title").textContent = "Error";
-          publishStatus.querySelector(".notice-text").textContent = msg;
-        }
-      } finally {
-        newDesignFile.value = "";
-        if (publishStatus) {
-          publishStatus.querySelector(".notice-title").textContent = "Estado";
-          publishStatus.querySelector(".notice-text").textContent = "Listo para publicar.";
-        }
-      }
-    });
-  }
-
-  if (addDesignToJson) {
-    addDesignToJson.addEventListener("click", () => {
-      if (!(designsJsonEl instanceof HTMLTextAreaElement)) return;
-
-      const name = String(document.getElementById("newDesignName")?.value || "").trim();
-      const price = clampNumber(document.getElementById("newDesignPrice")?.value, 0, 1_000_000);
-      const productId = String(document.getElementById("newDesignProduct")?.value || "").trim();
-      const sizesRaw = String(document.getElementById("newDesignSizes")?.value || "").trim();
-      const imageUrl = String(document.getElementById("newDesignImageUrl")?.value || "").trim();
-      const product = findProduct(productId || "remera-basica");
-      const fallbackColor =
-        Array.isArray(product?.colors) && product.colors.length > 0 ? String(product.colors[0]) : "";
-      const fixedColorRaw =
-        newDesignColor instanceof HTMLSelectElement ? String(newDesignColor.value || "").trim() : "";
-      const fixedColor = fixedColorRaw || fallbackColor;
-      const fixedSize = newDesignFixedSize instanceof HTMLSelectElement ? String(newDesignFixedSize.value || "").trim() : "";
-      const materialId = newDesignMaterial instanceof HTMLSelectElement ? String(newDesignMaterial.value || "").trim() : "";
-
-      if (!name) {
-        alert("Completá el nombre del diseño.");
-        return;
-      }
-
-      const baseId = name
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "")
-        .slice(0, 36);
-
-      const allowedSizes = sizesRaw
-        ? sizesRaw
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-            .map((s) => {
-              const n = Number(s);
-              return Number.isFinite(n) && String(n) === s ? n : s;
-            })
-        : [];
-
-      const list = parseDesignsFromTextarea();
-      const editingId =
-        editingDesignId instanceof HTMLInputElement ? String(editingDesignId.value || "").trim() : "";
-
-      if (editingId) {
-        const idx = list.findIndex((d) => String(d?.id || "") === editingId);
-        if (idx >= 0) {
-          const prev = list[idx] && typeof list[idx] === "object" ? list[idx] : {};
-          const prevImage = typeof prev?.imageUrl === "string" ? prev.imageUrl : "";
-          const nextImageUrl = imageUrl || prevImage || "";
-          list[idx] = {
-            ...prev,
-            id: editingId,
-            name,
-            price,
-            productId: productId || "remera-basica",
-            allowedSizes,
-            imageUrl: nextImageUrl,
-            fixedColor,
-            fixedSize,
-            materialId,
-          };
-        }
-      } else {
-        let id = baseId || `design-${Math.random().toString(16).slice(2, 8)}`;
-        if (list.some((d) => String(d?.id || "") === id)) {
-          id = `${id}-${Math.random().toString(16).slice(2, 6)}`;
-        }
-
-        list.push({
-          id,
-          name,
-          price,
-          productId: productId || "remera-basica",
-          allowedSizes,
-          imageUrl,
-          fixedColor,
-          fixedSize,
-          materialId,
-        });
-      }
-
-      writeDesignsToTextarea(list);
-      renderAdminDesignList();
-      clearEditing();
-    });
-  }
-
-  if (adminDesignList) {
-    adminDesignList.addEventListener("click", (e) => {
-      const target = e.target instanceof HTMLElement ? e.target : null;
-      if (!target) return;
-      const editBtn = target.closest("[data-edit-design]");
-      if (editBtn instanceof HTMLElement) {
-        const id = editBtn.getAttribute("data-edit-design") || "";
-        if (!id) return;
-        setEditing(id);
-        return;
-      }
-
-      const removeBtn = target.closest("[data-remove-design]");
-      if (removeBtn instanceof HTMLElement) {
-        const id = removeBtn.getAttribute("data-remove-design") || "";
-        if (!id) return;
-        const list = parseDesignsFromTextarea();
-        const next = list.filter((d) => String(d?.id || "") !== id);
-        writeDesignsToTextarea(next);
-        renderAdminDesignList();
-        const currentEditing =
-          editingDesignId instanceof HTMLInputElement ? String(editingDesignId.value || "").trim() : "";
-        if (currentEditing && currentEditing === id) clearEditing();
-      }
-    });
-  }
-
-  if (testApiBtn) {
-    testApiBtn.addEventListener("click", async () => {
-      try {
-        if (publishStatus) {
-          publishStatus.querySelector(".notice-title").textContent = "Estado";
-          publishStatus.querySelector(".notice-text").textContent = "Probando conexión...";
-        }
-        const { data } = await fetchPublishedStoreStatus();
-        const kvOk = Boolean(data?.meta?.kvConfigured);
-        const updatedAt = typeof data?.updatedAt === "number" ? new Date(data.updatedAt).toLocaleString() : "—";
-        if (publishStatus) {
-          publishStatus.querySelector(".notice-title").textContent = "Estado";
-          publishStatus.querySelector(".notice-text").textContent = kvOk
-            ? `KV conectado. Última publicación: ${updatedAt}`
-            : "KV no configurado en Vercel (KV_REST_API_URL / KV_REST_API_TOKEN).";
-        }
-      } catch {
-        if (publishStatus) {
-          publishStatus.querySelector(".notice-title").textContent = "Estado";
-          publishStatus.querySelector(".notice-text").textContent =
-            "No se pudo consultar /api/store. Revisá el deploy en Vercel.";
-        }
-      }
-    });
-  }
-
-  const form = document.getElementById("adminForm");
-  const backBtn = document.getElementById("adminBack");
-  const resetBtn = document.getElementById("adminReset");
-
-  if (backBtn) backBtn.addEventListener("click", () => navigate("#/"));
-
-  if (resetBtn) {
-    resetBtn.addEventListener("click", () => {
-      const next = { ...getSettings() };
-      delete next.designs;
-      delete next.pricing;
-      setSettings(next);
-      render();
-    });
-  }
-
-  if (!form) return;
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fd = new FormData(form);
-
-    let designs = [];
-    try {
-      const raw = String(fd.get("designsJson") || "").trim();
-      designs = JSON.parse(raw);
-      if (!Array.isArray(designs)) throw new Error("JSON inválido");
-      designs = designs
-        .map((d) => {
-          if (!d || typeof d !== "object") return null;
-          const id = String(d.id || "").trim();
-          const name = String(d.name || "").trim();
-          const price = Number(d.price) || 0;
-          if (!id || !name) return null;
-          const productId = typeof d.productId === "string" ? d.productId.trim() : "";
-          const imageUrl = typeof d.imageUrl === "string" ? d.imageUrl.trim() : "";
-          const allowedSizes = Array.isArray(d.allowedSizes)
-            ? d.allowedSizes.filter((s) => s !== null && s !== undefined && String(s).trim().length > 0)
-            : [];
-          const fixedColor = typeof d.fixedColor === "string" ? d.fixedColor.trim() : "";
-          const fixedSize = typeof d.fixedSize === "string" ? d.fixedSize.trim() : "";
-          const materialId = typeof d.materialId === "string" ? d.materialId.trim() : "";
-          return { id, name, price, productId, allowedSizes, imageUrl, fixedColor, fixedSize, materialId };
-        })
-        .filter(Boolean);
-      if (designs.length === 0) throw new Error("Cargá al menos 1 diseño");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo leer el JSON";
-      alert(msg);
-      return;
-    }
-
-    const priceChico = clampNumber(fd.get("priceChico"), 0, 1_000_000);
-    const priceMediano = clampNumber(fd.get("priceMediano"), 0, 1_000_000);
-    const priceGrande = clampNumber(fd.get("priceGrande"), 0, 1_000_000);
-    const priceHat = clampNumber(fd.get("priceHat"), 0, 1_000_000);
-    const priceRemeraPeinado = clampNumber(fd.get("priceRemeraPeinado"), 0, 1_000_000);
-    const priceRemeraAlgodon100 = clampNumber(fd.get("priceRemeraAlgodon100"), 0, 1_000_000);
-    const priceBuzo = clampNumber(fd.get("priceBuzo"), 0, 1_000_000);
-    const priceGorra = clampNumber(fd.get("priceGorra"), 0, 1_000_000);
-    const pickupLabel = String(fd.get("pickupLabel") || "").trim();
-    const deliveryLabel = String(fd.get("deliveryLabel") || "").trim();
-    const deliveryFlatRate = clampNumber(fd.get("deliveryFlatRate"), 0, 1_000_000);
-
-    const next = { ...getSettings() };
-    next.designs = designs;
-    next.pricing = {
-      productBase: {
-        remeraPeinado: priceRemeraPeinado,
-        remeraAlgodon100: priceRemeraAlgodon100,
-        buzo: priceBuzo,
-        gorra: priceGorra,
-      },
-      stampSizes: { chico: priceChico, mediano: priceMediano, grande: priceGrande },
-      hatStamp: priceHat,
-      shipping: {
-        pickupLabel: pickupLabel || CONFIG.shipping.pickupLabel,
-        deliveryLabel: deliveryLabel || CONFIG.shipping.deliveryLabel,
-        deliveryFlatRate,
-      },
-    };
-    setSettings(next);
-
-    try {
-      if (publishStatus) {
-        publishStatus.querySelector(".notice-title").textContent = "Publicando";
-        publishStatus.querySelector(".notice-text").textContent = "Guardando cambios...";
-      }
-      const res = await fetch("/api/store", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "x-admin-key": adminSessionKey,
-        },
-        body: JSON.stringify({ designs, pricing: next.pricing }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const msg = data?.error ? String(data.error) : "No se pudo publicar.";
-        if (publishStatus) {
-          publishStatus.querySelector(".notice-title").textContent = "Error";
-          publishStatus.querySelector(".notice-text").textContent = msg;
-        }
-        alert(msg);
-        return;
-      }
-      await loadPublishedStore();
-      if (publishStatus) {
-        publishStatus.querySelector(".notice-title").textContent = "Publicado";
-        publishStatus.querySelector(".notice-text").textContent = "Los clientes ya pueden verlo.";
-      }
-    } catch {
-      if (publishStatus) {
-        publishStatus.querySelector(".notice-title").textContent = "Error";
-        publishStatus.querySelector(".notice-text").textContent =
-          "No se pudo publicar. Revisá Vercel KV y las variables de entorno.";
-      }
-      alert("No se pudo publicar. Revisá Vercel KV y las variables de entorno.");
-      return;
-    }
-
-    navigate("#/");
-  });
 }
 
 function renderCatalog(query) {
@@ -1452,14 +524,15 @@ function renderCatalog(query) {
       const media = img
         ? `<img class="design-card-img" src="${escapeHtml(cloudinaryOptimized(img, 600))}" alt="${escapeHtml(d.name)}" loading="lazy" />`
         : `<div class="design-card-img placeholder"></div>`;
-      const price = designPriceFor(d);
+      const product = findProduct(d.productId || "remera-basica");
+      const price = product ? productBasePriceFor(product, d.materialId) + designPriceFor(d) : designPriceFor(d);
       return `
         <button class="design-card" type="button" role="listitem" aria-label="Ver diseño ${escapeHtml(
           d.name,
         )}" data-design-order="${escapeHtml(d.id)}">
           ${media}
           <div class="design-card-name">${escapeHtml(d.name)}</div>
-          <div class="design-card-price">${price ? `+${formatMoney(price)}` : ""}</div>
+          <div class="design-card-price">${price ? formatMoney(price) : ""}</div>
         </button>
       `;
     })
@@ -1731,6 +804,22 @@ function initHorizontalCarousel(carousel, prevBtn, nextBtn) {
   if (!reducedMotion) startAuto();
 }
 
+// Talles que se ofrecen para un diseño. Si el diseño no los limita, la remera usa
+// la numeración de su tela (1 a N), igual que en la página de producto.
+function designSizesFor(design, product) {
+  const fixedSize = typeof design?.fixedSize === "string" ? design.fixedSize.trim() : "";
+  if (fixedSize) return [fixedSize];
+  if (Array.isArray(design?.allowedSizes) && design.allowedSizes.length > 0) {
+    return design.allowedSizes.map((s) => String(s));
+  }
+  if (product?.type === "Remera") {
+    const material = MATERIALS.find((m) => m.id === design?.materialId) || MATERIALS[0];
+    const max = Number(material?.maxSize) || 0;
+    if (max > 0) return Array.from({ length: max }, (_, i) => String(i + 1));
+  }
+  return (product?.sizes || []).map((s) => String(s));
+}
+
 function renderDesignOrder(designId) {
   const design = findDesign(designId);
   if (!design) return renderNotFound();
@@ -1746,12 +835,7 @@ function renderDesignOrder(designId) {
   const fallbackColor = Array.isArray(product.colors) && product.colors.length > 0 ? String(product.colors[0]) : "";
   const effectiveColor = fixedColor || fallbackColor;
 
-  const allowed =
-    fixedSize
-      ? [fixedSize]
-      : Array.isArray(design.allowedSizes) && design.allowedSizes.length > 0
-        ? design.allowedSizes.map((s) => String(s))
-        : (product.sizes || []).map((s) => String(s));
+  const allowed = designSizesFor(design, product);
 
   const sizeOptions = allowed
     .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
@@ -2161,12 +1245,7 @@ function attachDesignOrderHandlers(designId) {
     const fallbackColor = Array.isArray(product.colors) && product.colors.length > 0 ? String(product.colors[0]) : "";
     const effectiveColor = fixedColor || fallbackColor;
 
-    const allowed =
-      fixedSize
-        ? [fixedSize]
-        : Array.isArray(design.allowedSizes) && design.allowedSizes.length > 0
-          ? design.allowedSizes.map((s) => String(s))
-          : (product.sizes || []).map((s) => String(s));
+    const allowed = designSizesFor(design, product);
     if (!allowed.includes(size)) {
       alert("El talle seleccionado no está disponible para este diseño.");
       return;
@@ -2975,12 +2054,21 @@ function buildPaymentMessage(order) {
     `Envío: ${formatMoney(order.totals.shippingCost)}`,
     `Total a pagar: ${formatMoney(order.totals.total)}`,
     "",
-    "Datos para transferencia:",
-    `Alias: ${CONFIG.bank.alias}`,
-    `CVU/CBU: ${CONFIG.bank.cvuCbu}`,
-    `Titular: ${CONFIG.bank.holder}`,
-    `CUIT: ${CONFIG.bank.cuit}`,
-    "",
+  );
+
+  const { bank, hasBank } = businessInfo();
+  if (hasBank) {
+    lines.push("Datos para transferencia:");
+    if (bank.alias) lines.push(`Alias: ${bank.alias}`);
+    if (bank.cvuCbu) lines.push(`CVU/CBU: ${bank.cvuCbu}`);
+    if (bank.holder) lines.push(`Titular: ${bank.holder}`);
+    if (bank.cuit) lines.push(`CUIT: ${bank.cuit}`);
+    lines.push("");
+  } else {
+    lines.push("¿Me pasás los datos para transferir?", "");
+  }
+
+  lines.push(
     `Referencia: Pedido #${order.number} - ${order.checkout.name}`,
     "",
     "Te envío el comprobante cuando transfiera.",
@@ -3000,7 +2088,7 @@ function normalizeWhatsappNumber(raw) {
 }
 
 function buildWhatsappLink(message) {
-  const number = normalizeWhatsappNumber(CONFIG.whatsappNumber);
+  const number = normalizeWhatsappNumber(businessInfo().whatsappNumber);
   const text = encodeURIComponent(message);
   return `https://wa.me/${number}?text=${text}`;
 }
@@ -3022,6 +2110,22 @@ function renderOrderConfirmation(orderId) {
 
   const message = buildPaymentMessage(order);
   const wa = buildWhatsappLink(message);
+  const { bank } = businessInfo();
+  const bankLines = [
+    ["Alias", bank.alias],
+    ["CVU/CBU", bank.cvuCbu],
+    ["Titular", bank.holder],
+    ["CUIT", bank.cuit],
+  ]
+    .filter(([, value]) => value)
+    .map(
+      ([label, value]) => `
+          <div class="line">
+            <div class="line-title">${label}</div>
+            <div class="mono">${escapeHtml(value)}</div>
+          </div>`,
+    )
+    .join("");
 
   return `
     <div class="two-col">
@@ -3043,22 +2147,7 @@ function renderOrderConfirmation(orderId) {
 
         <div class="panel">
           <h2 class="panel-title" style="margin-top:0">Datos de transferencia</h2>
-          <div class="line">
-            <div class="line-title">Alias</div>
-            <div class="mono">${escapeHtml(CONFIG.bank.alias)}</div>
-          </div>
-          <div class="line">
-            <div class="line-title">CVU/CBU</div>
-            <div class="mono">${escapeHtml(CONFIG.bank.cvuCbu)}</div>
-          </div>
-          <div class="line">
-            <div class="line-title">Titular</div>
-            <div class="mono">${escapeHtml(CONFIG.bank.holder)}</div>
-          </div>
-          <div class="line">
-            <div class="line-title">CUIT</div>
-            <div class="mono">${escapeHtml(CONFIG.bank.cuit)}</div>
-          </div>
+          ${bankLines || `<p class="panel-subtitle">Escribinos por WhatsApp y te pasamos el alias para transferir.</p>`}
           <div class="line">
             <div>
               <div class="line-title">Referencia</div>
@@ -3223,11 +2312,20 @@ async function loadPublishedStore() {
   } catch {}
 }
 
-async function fetchPublishedStoreStatus() {
-  const res = await fetch("/api/store", { cache: "no-store" });
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, data };
-}
+// Lo que el panel necesita de la tienda
+const adminApi = {
+  formatMoney,
+  escapeHtml,
+  cloudinaryOptimized,
+  uploadDesignToCloudinary,
+  getDesigns,
+  getPricing,
+  productBasePriceFor,
+  businessInfo,
+  getPublishedStore,
+  setPublishedStore,
+  normalizeWhatsappNumber,
+};
 
 window.addEventListener("hashchange", render);
 window.addEventListener("DOMContentLoaded", () => {

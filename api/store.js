@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+
 const DEFAULT_STORE_KEY = "batystore:store:v1";
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_DESIGNS = 200;
@@ -128,6 +130,23 @@ function sanitizePricing(rawPricing) {
   };
 }
 
+// Datos de cobro y contacto que el dueño carga desde el panel. Son opcionales:
+// si faltan, la tienda usa los de app-data.js.
+function sanitizeBusiness(rawBusiness) {
+  const obj = toPlainObject(rawBusiness);
+  if (!obj) return null;
+  const bank = toPlainObject(obj.bank) || {};
+  return {
+    whatsappNumber: asTrimmedString(obj.whatsappNumber, 30).replace(/\D/g, "").slice(0, 15),
+    bank: {
+      alias: asTrimmedString(bank.alias, 60),
+      cvuCbu: asTrimmedString(bank.cvuCbu, 40).replace(/\s/g, ""),
+      holder: asTrimmedString(bank.holder, 80),
+      cuit: asTrimmedString(bank.cuit, 20),
+    },
+  };
+}
+
 function sanitizeStorePayload(rawPayload) {
   const obj = toPlainObject(rawPayload);
   if (!obj) return { ok: false, error: "Payload inválido" };
@@ -138,7 +157,13 @@ function sanitizeStorePayload(rawPayload) {
   const pricing = sanitizePricing(obj.pricing);
   if (!pricing) return { ok: false, error: "Pricing inválido" };
 
-  return { ok: true, value: { designs, pricing } };
+  return { ok: true, value: { designs, pricing, business: sanitizeBusiness(obj.business) } };
+}
+
+function sameKey(provided, expected) {
+  const a = crypto.createHash("sha256").update(String(provided)).digest();
+  const b = crypto.createHash("sha256").update(String(expected)).digest();
+  return crypto.timingSafeEqual(a, b);
 }
 
 function getEnv(name) {
@@ -210,17 +235,6 @@ module.exports = async (req, res) => {
   const adminKey = getEnv("ADMIN_KEY").trim();
   const { url, token } = getUpstashConfig();
   const kvConfigured = Boolean(url && token);
-  const meta = {
-    kvConfigured,
-    env: {
-      hasKV_REST_API_URL: Boolean(getEnv("KV_REST_API_URL")),
-      hasKV_REST_API_TOKEN: Boolean(getEnv("KV_REST_API_TOKEN")),
-      hasUPSTASH_REDIS_REST_URL: Boolean(getEnv("UPSTASH_REDIS_REST_URL")),
-      hasUPSTASH_REDIS_REST_TOKEN: Boolean(getEnv("UPSTASH_REDIS_REST_TOKEN")),
-      hasADMIN_KEY: Boolean(getEnv("ADMIN_KEY")),
-    },
-    storeKey,
-  };
 
   if (req.method === "GET") {
     try {
@@ -229,11 +243,11 @@ module.exports = async (req, res) => {
       json(res, 200, {
         designs: clean.ok ? clean.value.designs : [],
         pricing: clean.ok ? clean.value.pricing : null,
+        business: clean.ok ? clean.value.business : null,
         updatedAt: typeof stored?.updatedAt === "number" ? stored.updatedAt : null,
-        meta,
       });
     } catch {
-      json(res, 200, { designs: [], pricing: null, updatedAt: null, meta });
+      json(res, 200, { designs: [], pricing: null, business: null, updatedAt: null });
     }
     return;
   }
@@ -245,7 +259,7 @@ module.exports = async (req, res) => {
     }
 
     const provided = String(req.headers["x-admin-key"] || "");
-    if (provided !== adminKey) {
+    if (!provided || !sameKey(provided, adminKey)) {
       json(res, 401, { error: "Unauthorized" });
       return;
     }
@@ -264,25 +278,38 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // El panel pide esto al entrar, para validar la clave sin publicar nada
+    if (payload && payload.action === "check") {
+      json(res, 200, { ok: true, kvConfigured });
+      return;
+    }
+
     const sanitized = sanitizeStorePayload(payload);
     if (!sanitized.ok) {
       json(res, 400, { error: sanitized.error });
       return;
     }
 
-    const clean = {
-      designs: sanitized.value.designs,
-      pricing: sanitized.value.pricing,
-      updatedAt: Date.now(),
-    };
+    if (!kvConfigured) {
+      json(res, 500, { error: "KV not configured" });
+      return;
+    }
 
     try {
-      if (!kvConfigured) {
-        json(res, 500, { error: "KV not configured" });
-        return;
+      let business = sanitized.value.business;
+      // Un panel viejo que no manda los datos de cobro no los borra
+      if (!business) {
+        const previous = sanitizeStorePayload(await upstashGet(storeKey).catch(() => null));
+        business = previous.ok ? previous.value.business : null;
       }
+      const clean = {
+        designs: sanitized.value.designs,
+        pricing: sanitized.value.pricing,
+        business,
+        updatedAt: Date.now(),
+      };
       await upstashSet(storeKey, clean);
-      json(res, 200, { ok: true });
+      json(res, 200, { ok: true, updatedAt: clean.updatedAt });
     } catch {
       json(res, 500, { error: "Store write failed" });
     }
