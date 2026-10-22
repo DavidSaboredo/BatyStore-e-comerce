@@ -1,352 +1,120 @@
-# 🛍️ BatyGeekStore — E‑commerce MVP con Admin embebido + publicación global (Vercel + Upstash)
+<div align="center">
 
-[![Vercel](https://img.shields.io/badge/Deploy-Vercel-000?logo=vercel&logoColor=white)](https://vercel.com/)
-![Stack](https://img.shields.io/badge/Stack-HTML%20%7C%20CSS%20%7C%20Vanilla%20JS-0b0b0e)
-![API](https://img.shields.io/badge/API-Vercel%20Functions-1f6feb)
-![DB](https://img.shields.io/badge/DB-Upstash%20Redis%20(REST)-d82c20?logo=redis&logoColor=white)
-![Images](https://img.shields.io/badge/Media-Cloudinary-3448c5?logo=cloudinary&logoColor=white)
+# BatyGeekStore
 
-E‑commerce “sin framework” (SPA por hash) pensado para **vender rápido**: catálogo personalizable + “Diseños de la casa” (carrusel), carrito, checkout y generación de pedido por WhatsApp. Incluye un **panel Admin dentro de la misma web** para cargar diseños y precios y **publicarlos globalmente** con Vercel + Upstash (Redis REST).
+**Tienda online de remeras, buzos y gorras estampadas a pedido, con el pedido listo para enviar por WhatsApp.**
 
----
+[![Ver en vivo](https://img.shields.io/badge/Ver_en_vivo-1d4fc4?style=for-the-badge&logo=vercel&logoColor=white)](https://baty-store-e-comerce.vercel.app)
+<br>
+![JavaScript](https://img.shields.io/badge/JavaScript-0c1730?style=for-the-badge&logo=javascript&logoColor=white) ![HTML5](https://img.shields.io/badge/HTML5-0c1730?style=for-the-badge&logo=html5&logoColor=white) ![CSS](https://img.shields.io/badge/CSS-0c1730?style=for-the-badge&logo=css&logoColor=white) ![Node.js](https://img.shields.io/badge/Vercel_Functions-0c1730?style=for-the-badge&logo=nodedotjs&logoColor=white) ![Redis](https://img.shields.io/badge/Upstash_Redis-0c1730?style=for-the-badge&logo=redis&logoColor=white) ![Cloudinary](https://img.shields.io/badge/Cloudinary-0c1730?style=for-the-badge&logo=cloudinary&logoColor=white)
 
-## 📌 Tabla de contenidos
+<br>
 
-- [El problema](#-el-problema)
-- [La solución](#-la-solución)
-- [Demo y capturas](#-demo-y-capturas)
-- [Arquitectura](#-arquitectura)
-- [Instalación](#-instalación)
-- [Uso](#-uso)
-- [Configuración](#-configuración)
-- [Rendimiento](#-rendimiento)
-- [Roadmap](#-roadmap)
-- [Contribuir](#-contribuir)
-- [Créditos](#-créditos)
+<img src="docs/portada.jpg" alt="Página principal de BatyGeekStore con remeras geek estampadas a pedido" width="100%">
 
----
+</div>
 
-## ❓ El problema
+> [!NOTE]
+> Sistema en uso por un negocio real. Los datos del negocio no forman parte de este repositorio.
 
-Muchos MVPs de e‑commerce fallan por lo mismo:
+## Qué resuelve
 
-- 🧩 Dependen de un backend grande “para arrancar”.
-- 🧠 El dueño necesita cargar diseños/precios, pero no quiere tocar código.
-- 🌍 Los cambios deben verse “para todos” (no solo en un navegador).
-- 📩 El canal real de cierre suele ser WhatsApp, no un checkout con pago integrado.
+Una tienda de estampados necesita mostrar sus diseños, dejar que el cliente elija talle y material, y cerrar la venta por el canal que ya usa: WhatsApp. BatyGeekStore reúne todo en una sola web liviana, y el dueño carga y publica sus diseños y precios desde un panel, sin tocar código.
 
-**Objetivo**: un e‑commerce simple, publicable en Vercel, que permita vender ya y actualizar contenidos sin fricción.
+## Funcionalidades
 
----
+- **Diseños de la casa**: catálogo con carrusel, imagen ampliable y talles a elegir.
+- **Productos personalizables**: remera, buzo y gorra, con precio que cambia según el material y la estampa.
+- **Carrito y checkout**: el carrito se conserva en el navegador del cliente.
+- **Pedido por WhatsApp**: el mensaje sale armado con todos los datos del pedido.
+- **Envío o retiro**: costo de envío configurable por el dueño.
+- **Panel de administración integrado**: carga de diseños, precios y envío, con acceso protegido por clave.
+- **Publicación para todos**: lo que el dueño publica lo ven todos los clientes, no solo un navegador.
+- **Imágenes optimizadas**: se suben a Cloudinary y se muestran en tamaños livianos.
+- **Pensada para el celular**: diseño adaptable con fondo temático y videos de cada producto.
 
-## ✅ La solución
+## Capturas
 
-Este repo resuelve el problema con una arquitectura mínima:
+<table>
+  <tr>
+    <td width="70%"><img src="docs/portada.jpg" alt="BatyGeekStore en la computadora"></td>
+    <td width="30%"><img src="docs/celular.jpg" alt="BatyGeekStore en el celular"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>En la computadora</sub></td>
+    <td align="center"><sub>En el celular</sub></td>
+  </tr>
+</table>
 
-- ⚡ SPA por hash: todo el flujo de compra en un solo frontend (HTML/CSS/JS).
-- 🧑‍💼 Admin embebido: carga diseños + precios + delivery sin tocar código.
-- 🌐 Publicación global: el Admin publica a `/api/store` para que los clientes vean lo mismo.
-- 🖼️ Imágenes: subida directa a Cloudinary desde el Admin.
-- 🧾 Pedido por WhatsApp: mensaje armado con datos completos (incluye ID del diseño de la casa).
+## Tecnologías
 
----
+| Parte | Tecnología |
+| --- | --- |
+| Interfaz | HTML, CSS y JavaScript sin framework (aplicación de una sola página) |
+| Servidor | Función de Vercel (`api/store.js`) |
+| Base de datos | Upstash Redis (REST) |
+| Imágenes | Cloudinary |
+| Pedidos | Mensaje de WhatsApp |
+| Publicación | Vercel |
 
-## 🆕 Novedades de esta iteración (Marzo 2026)
+## Para desarrolladores
 
-Esta versión cierra una etapa completa de mejoras funcionales, seguridad y diseño visual.
+<details>
+<summary><b>Cómo publicarlo</b></summary>
 
-### 1) Endurecimiento del backend (Fase 2)
+No tiene dependencias ni paso de compilación.
 
-- ✅ Validación estricta de payload en API de publicación.
-- ✅ Límite de tamaño de body (1 MB) para evitar cargas excesivas.
-- ✅ Límite de cantidad de diseños publicados (máximo 200).
-- ✅ Sanitización de diseños y precios antes de guardar o devolver datos.
-- ✅ Respuestas HTTP claras por tipo de error:
-  - 400 para datos inválidos
-  - 413 para payload demasiado grande
+1. Subir el repositorio a GitHub e importarlo en Vercel.
+2. En Vercel, crear una base **Upstash for Redis** desde Storage y conectarla al proyecto.
+3. Cargar las variables de entorno (ver el bloque siguiente) y volver a publicar.
+4. Verificar que `https://TU_DOMINIO/api/store` responda con `meta.kvConfigured = true`.
 
-Resultado: publicación más segura y estable, con menor riesgo de datos corruptos.
+</details>
 
-### 2) Modularización y seguridad de admin (Fase 3)
+<details>
+<summary><b>Variables de entorno</b></summary>
 
-- ✅ Se extrajeron constantes y datos del catálogo a un módulo dedicado.
-- ✅ Se centralizó configuración en una sola fuente de verdad.
-- ✅ El acceso admin dejó de depender de parámetros en URL.
-- ✅ Se migró sesión admin a sessionStorage.
-- ✅ Se eliminó fallback inseguro de clave en código.
+Se cargan en Vercel, en Settings, Environment Variables.
 
-Resultado: código más mantenible y modelo de acceso admin más seguro.
+| Variable | Para qué |
+| --- | --- |
+| `ADMIN_KEY` | Clave que autoriza publicar desde el panel (header `x-admin-key`) |
+| `UPSTASH_REDIS_REST_URL` | Dirección de la base Redis |
+| `UPSTASH_REDIS_REST_TOKEN` | Credencial de la base Redis |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Nombres alternativos de los dos anteriores |
 
-### 3) Refresh visual y branding
+Cloudinary usa un upload preset sin firma, que se configura en la pantalla `#/config` de la web.
 
-- ✅ Rebranding completo de BatyStore a BatyGeekStore.
-- ✅ Fondo global artístico con imágenes Akira y transiciones suaves.
-- ✅ Hero visual renovado con mejor contraste.
-- ✅ Panels de resumen personalizados con alto impacto visual.
-- ✅ Footer temático ajustado para desktop y mobile.
+</details>
 
-Resultado: estética más distintiva, coherente y con identidad de marca.
-
-### 4) Ajustes responsive y experiencia mobile
-
-- ✅ Correcciones de layout para evitar contenido amontonado.
-- ✅ Mejoras de formularios en pantallas chicas (campos más usables al tacto).
-- ✅ Ajustes de scroll al entrar a personalización para llevar al usuario al punto correcto.
-- ✅ Ajustes iterativos de encuadre de fondo y footer para mejorar legibilidad.
-- ✅ Footer anclado al pie para que no “flote” en páginas cortas.
-- ✅ Corrección del resumen en mobile para evitar solapamientos al hacer scroll.
-- ✅ Reordenamiento visual en mobile: contenido principal primero, resumen después.
-- ✅ Entrada a producto y diseño desde la parte superior de la vista, mostrando primero la imagen y el bloque principal.
-
-Resultado: navegación más cómoda y predecible en celulares.
-
----
-
-## 🧪 Problemas reales y cómo los resolvimos
-
-### Problema: publicación con riesgo de datos inválidos
-
-Cómo se resolvió:
-- Se incorporaron funciones de sanitización por dominio (diseños, pricing, shipping).
-- Se forzaron tipos y rangos válidos para cada campo.
-- Se aplicaron límites de tamaño y cantidad.
-
-### Problema: acceso admin expuesto o frágil
-
-Cómo se resolvió:
-- Se separó la clave real de entorno en Vercel.
-- Se validó sesión local contra la clave configurada en el navegador.
-- Se eliminó el uso de query params para autenticación.
-
-### Problema: contraste y legibilidad sobre fondos artísticos
-
-Cómo se resolvió:
-- Se reforzó contraste con overlays y sombras de texto.
-- Se hicieron ajustes finos por breakpoint.
-- Se calibró el footer para que imagen y texto convivan sin perder lectura.
-
-### Problema: saltos incómodos en mobile
-
-Cómo se resolvió:
-- Se ajustaron media queries en bloques críticos.
-- Se mejoraron alineaciones, spacing y tamaño de targets táctiles.
-- Se revisó el flujo visual entre personalización, resumen y checkout.
-
-### Problema: resumen superpuesto y entrada visual incorrecta en mobile
-
-Cómo se resolvió:
-- Se eliminó el comportamiento sticky del resumen en pantallas chicas.
-- Se dejó el layout apilado en orden natural para evitar solapamientos.
-- Se corrigió la entrada a vistas de producto y diseños para abrir desde arriba de todo.
-- Se priorizó mostrar primero la imagen del producto/diseño antes que el formulario o el resumen.
-
----
-
-## 📦 Estado actual del proyecto
-
-- ✅ Listo para deploy automático en Vercel desde GitHub.
-- ✅ API preparada para publicar y leer estado global de tienda.
-- ✅ UI web y mobile ajustada con foco en legibilidad y branding.
-- ✅ Estructura modular preparada para próximas iteraciones.
-
----
-
-## 🎥 Demo y capturas
-
-- Demo (Vercel): `https://TU_DOMINIO`  
-- Endpoint de datos publicados: `https://TU_DOMINIO/api/store`
-
-Capturas sugeridas para este README:
-- Home (hero + carrusel)
-- Pantalla de “Diseño de la casa” (talle + color fijo)
-- Producto personalizable (cambio de material modifica precio)
-- Admin (diseños + precios + publicar)
-
-Tip: guardá las imágenes en `docs/` y linkealas así:
-
-```md
-![Home](docs/home.png)
-```
-
----
-
-## 🧱 Arquitectura
-
-### Componentes
-
-- **Frontend**
-  - `index.html`: shell (header/nav) + `<div id="app">`
-  - `styles.css`: tema y componentes
-  - `app.js`: lógica completa (router, vistas, handlers, carrito, checkout, admin)
-  - `app-data.js`: configuración centralizada, catálogo, pricing base y constantes
-- **Backend (Vercel Function)**
-  - `api/store.js`: lectura/escritura global a Upstash Redis REST con validación y sanitización de payload
-
-### Diagrama (alto nivel)
-
-```mermaid
-flowchart LR
-  U[👤 Cliente] -->|Navega SPA #/| FE[🌐 Frontend (index.html + app.js)]
-  A[🧑‍💼 Admin] -->|Publicar| FE
-  FE -->|POST /api/store (x-admin-key)| API[⚙️ Vercel Function /api/store]
-  FE -->|GET /api/store| API
-  API -->|Upstash REST| KV[(🗄️ Upstash Redis)]
-  FE -->|Upload| CLD[(🖼️ Cloudinary)]
-  FE -->|Mensaje armado| WA[💬 WhatsApp]
-```
-
-### Archivos clave
+<details>
+<summary><b>Estructura del proyecto</b></summary>
 
 | Archivo | Rol |
-|---|---|
-| `index.html` | Layout base, navegación, carga del módulo principal |
-| `styles.css` | Tema (tokens) + UI (paneles, cards, carrusel, admin) |
-| `app.js` | Router SPA + vistas + lógica de negocio |
-| `api/store.js` | API de publicación global (GET/POST) a Upstash |
+| --- | --- |
+| `index.html` | Estructura base y carga de la aplicación |
+| `styles.css` | Estilos |
+| `app.js` | Rutas por hash (`#/`, `#/producto`, `#/diseno`, `#/carrito`, `#/checkout`, `#/como-funciona`, `#/admin`), carrito, checkout y panel |
+| `app-data.js` | Configuración, catálogo y precios base |
+| `api/store.js` | Lectura y escritura de lo publicado en Redis, con validación de datos |
+
+</details>
+
+<details>
+<summary><b>Seguridad de la publicación</b></summary>
+
+- Validación del contenido recibido, con límite de 1 MB por pedido y de 200 diseños.
+- Los diseños y precios se sanean antes de guardarse o devolverse.
+- La clave del panel no está en el código: se define como variable de entorno.
+
+</details>
 
 ---
 
-## 🧩 Desafíos técnicos resueltos
+<div align="center">
 
-- 🗃️ **Publicación global sin backend complejo**: Upstash Redis REST vía Vercel Functions.
-- 🔐 **Protección del Admin**: llave `ADMIN_KEY` en header `x-admin-key`.
-- 🖼️ **Subida de imágenes sin servidor propio**: Cloudinary unsigned preset.
-- 🧭 **SPA sin framework**: router por hash, render + attach handlers por vista.
-- 🧮 **Precios dinámicos**:
-  - Remera: precio base depende del material (peinado vs 100%).
-  - Estampas: extra por ubicación/tamaño.
-  - Delivery: etiqueta + costo configurable desde Admin.
-- 🧷 **Carrusel usable**: drag con mouse, wheel, botones, auto-scroll (pausa por interacción y respeta “reducir movimiento”).
+Diseñado y desarrollado por **[laruzo-dev](https://laruzo-dev-ar.vercel.app)**
+<br>
+<sub>¿Querés un sistema así para tu negocio? <a href="https://laruzo-dev-ar.vercel.app/#contacto">Hablemos</a>.</sub>
 
----
-
-## 🛠️ Instalación
-
-### Requisitos
-
-- Cuenta de **Vercel**
-- **Upstash for Redis** (vía Storage en Vercel)
-- Cuenta de **Cloudinary** (para subir imágenes desde Admin)
-
-### 1) Deploy en Vercel
-
-1. Subí el repo a GitHub.
-2. Vercel → New Project → importá el repo.
-3. Deploy.
-
-### 2) Crear y conectar Upstash Redis (Storage)
-
-1. Vercel → Project → Storage
-2. Crear **Upstash for Redis**
-3. Conectar la DB al proyecto
-
-### 3) Variables de entorno (Production)
-
-Vercel → Project → Settings → Environment Variables (**Production**):
-
-- `ADMIN_KEY` = tu clave
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
-
-Luego: **Redeploy**.
-
-### 4) Verificación rápida
-
-Abrí:
-
-- `https://TU_DOMINIO/api/store`
-
-Deberías ver `meta.kvConfigured = true`.
-
----
-
-## ▶️ Uso
-
-### Como cliente
-
-1. Entrá a Home (`#/`)
-2. Elegí:
-   - 🏠 **Diseño de la casa** (carrusel) → elegís talle → se agrega al carrito
-   - o ✨ **Personalizable** → elegís material/ubicación → se agrega al carrito
-3. Carrito (`#/carrito`) → checkout (`#/checkout`)
-4. Se genera el pedido y se arma el mensaje de WhatsApp
-
-### Como admin
-
-1. Configuración (`#/config`):
-   - Cloudinary (cloud name + preset unsigned + folder)
-   - Admin key (debe coincidir con `ADMIN_KEY` de Vercel)
-2. Admin (`#/admin`) → cargar:
-   - Diseños de la casa
-   - Precios (remera por material, buzo, gorra)
-   - Delivery y estampas
-3. Click en **Publicar** (esto es lo que lo hace global)
-
----
-
-## ⚙️ Configuración
-
-### Cloudinary
-
-Se requiere un **Upload Preset unsigned** para subir imágenes desde el navegador.
-
-### Upstash / Vercel KV
-
-La API `api/store.js` soporta estos nombres de env vars:
-- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (preferido)
-- `KV_REST_API_URL` / `KV_REST_API_TOKEN` (alternativo)
-
-### Admin key
-
-- En Vercel: `ADMIN_KEY`
-- En la web: `#/config` (se guarda en el navegador)
-- Para publicar: header `x-admin-key` debe coincidir
-
----
-
-## 🚀 Rendimiento
-
-Este repo está pensado para ser liviano (sin bundlers ni dependencias).
-
-Cómo medir (recomendado):
-
-- Lighthouse (Chrome DevTools) en el deploy de Vercel:
-  - Performance
-  - Accessibility
-  - Best Practices
-- Verificar:
-  - Lazy loading de imágenes en carrusel
-  - Videos con `preload="metadata"` y control por visibilidad
-
----
-
-## 🧭 Roadmap
-
-- [ ] Persistir pedidos en backend (hoy viven en localStorage del cliente)
-- [ ] Autenticación real para Admin (hoy es key + header)
-- [ ] Inventario/stock y variantes avanzadas
-- [ ] Integración de pagos (Mercado Pago / Stripe)
-- [ ] Export/Panel de pedidos para el negocio
-- [ ] SEO avanzado (migración a framework si se necesita)
-
----
-
-## 🤝 Contribuir
-
-Contribuciones son bienvenidas.
-
-1. Fork del repo
-2. Branch: `feat/mi-cambio`
-3. PR con descripción clara y capturas si aplica
-
-Guías:
-- Mantener estilo “vanilla” (sin dependencias salvo necesidad real).
-- Evitar exponer secretos.
-- Preferir cambios pequeños y comprobables.
-
----
-
-## 🧾 Créditos
-
-laruzo-dev
-
+</div>
